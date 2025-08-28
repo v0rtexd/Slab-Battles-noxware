@@ -1,6 +1,11 @@
--- Anerial.cc UI Library
--- Created by Grok based on user's preview
--- Usage example at the bottom
+-- Updated UI Library with fixes
+-- Fixed: Simulate click -> proper event firing
+-- Added: Automatic selection of first tab
+-- Added: Toggle functionality for modules (keybind toggles the module)
+-- Added: AddToggle method to modules
+-- Adjusted: Slider supports float values (removed unnecessary floor)
+-- Adjusted: Hidden the original modulesFrame
+-- Usage example at the bottom remains similar, but with added toggle
 
 local Library = {}
 
@@ -25,12 +30,12 @@ function Library.new(title)
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "AnerialUI"
     screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    screenGui.Parent = playerGui  -- Change to game.CoreGui if needed for exploits
+    screenGui.Parent = playerGui
 
     -- Main Frame
     local main = Instance.new("Frame")
     main.Name = "Main"
-    main.BackgroundColor3 = Color3.fromRGB(12, 12, 12)  -- 0.0471 * 255 ≈ 12
+    main.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
     main.BackgroundTransparency = 0.1
     main.Position = UDim2.new(0.309, 0, 0.324, 0)
     main.BorderSizePixel = 0
@@ -94,7 +99,12 @@ function Library.new(title)
     tabFrameSystem.Size = UDim2.new(0, 128, 0, sizeY - 70)
     tabFrameSystem.Parent = dragFrame
 
-    -- Modules scrolling frame
+    local uIListLayoutTab = Instance.new("UIListLayout")
+    uIListLayoutTab.SortOrder = Enum.SortOrder.LayoutOrder
+    uIListLayoutTab.Padding = UDim.new(0, 5)
+    uIListLayoutTab.Parent = tabFrameSystem
+
+    -- Modules scrolling frame template
     local modulesFrame = Instance.new("ScrollingFrame")
     modulesFrame.Name = "ModulesFrame"
     modulesFrame.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 100)
@@ -103,11 +113,13 @@ function Library.new(title)
     modulesFrame.BackgroundTransparency = 1
     modulesFrame.Position = UDim2.new(0.228, 0, 0.119, 0)
     modulesFrame.Size = UDim2.new(0, sizeX * 0.765, 0, sizeY * 0.865)
+    modulesFrame.Visible = false  -- Hide template
     modulesFrame.Parent = main
 
     local uIListLayout = Instance.new("UIListLayout")
     uIListLayout.FillDirection = Enum.FillDirection.Horizontal
     uIListLayout.Wraps = true
+    uIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
     uIListLayout.Padding = UDim.new(0, 10)
     uIListLayout.Parent = modulesFrame
 
@@ -124,10 +136,9 @@ function Library.new(title)
             dragToggle = true
             dragStart = input.Position
             startPos = main.Position
-            local conn = input.Changed:Connect(function()
+            input.Changed:Connect(function()
                 if input.UserInputState == Enum.UserInputState.End then
                     dragToggle = false
-                    conn:Disconnect()
                 end
             end)
         end
@@ -147,7 +158,6 @@ function Library.new(title)
 
     -- Library object
     local lib = {}
-    local currentTab
     local tabs = {}
 
     function lib:AddTab(name, icon)
@@ -185,8 +195,8 @@ function Library.new(title)
         -- Tab modules container
         local tabModules = modulesFrame:Clone()
         tabModules.Name = name .. "Modules"
-        tabModules.Parent = main
         tabModules.Visible = false
+        tabModules.Parent = main
 
         tabButton.MouseButton1Click:Connect(function()
             for _, tmod in ipairs(main:GetChildren()) do
@@ -195,27 +205,27 @@ function Library.new(title)
                 end
             end
             tabModules.Visible = true
-            currentTab = tabModules
-            -- Highlight (change color)
+            -- Highlight tab
             for _, tb in ipairs(tabFrameSystem:GetChildren()) do
                 if tb:IsA("Frame") then
-                    tb:FindFirstChildWhichIsA("TextLabel").TextColor3 = Color3.fromRGB(168, 168, 168)
+                    local lbl = tb:FindFirstChildWhichIsA("TextLabel")
+                    if lbl then
+                        lbl.TextColor3 = Color3.fromRGB(168, 168, 168)
+                    end
                 end
             end
             tabLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
         end)
 
-        local uIListLayoutTab = Instance.new("UIListLayout")
-        uIListLayoutTab.SortOrder = Enum.SortOrder.LayoutOrder
-        uIListLayoutTab.Padding = UDim.new(0, 5)
-        uIListLayoutTab.Parent = tabFrameSystem
+        table.insert(tabs, {button = tabButton, label = tabLabel})
 
-        table.insert(tabs, tabButtonFrame)
+        if #tabs == 1 then
+            tabButton.MouseButton1Click:Fire()
+        end
 
         local tab = {}
-        local moduleCount = 0
 
-        function tab:AddModule(name)
+        function tab:AddModule(name, callback)
             local moduleCollapsed = Instance.new("Frame")
             moduleCollapsed.Name = "ModuleCollapsed"
             moduleCollapsed.BackgroundColor3 = Color3.fromRGB(48, 48, 48)
@@ -270,8 +280,8 @@ function Library.new(title)
             moduleExpanded.BackgroundColor3 = Color3.fromRGB(31, 31, 31)
             moduleExpanded.BackgroundTransparency = 0.6
             moduleExpanded.Position = UDim2.new(0, 0, 1, 0)
-            moduleExpanded.Size = UDim2.new(1, 0, 0, 0)  -- Start with 0 height, will adjust dynamically
-            moduleExpanded.Visible = false
+            moduleExpanded.Size = UDim2.new(1, 0, 0, 0)
+            moduleExpanded.ClipsDescendants = true
             moduleExpanded.Parent = moduleCollapsed
 
             local uICornerExp = Instance.new("UICorner")
@@ -283,34 +293,51 @@ function Library.new(title)
             expandedLayout.Padding = UDim.new(0, 5)
             expandedLayout.Parent = moduleExpanded
 
+            local expandedPadding = Instance.new("UIPadding")
+            expandedPadding.PaddingTop = UDim.new(0, 5)
+            expandedPadding.PaddingLeft = UDim.new(0, 5)
+            expandedPadding.PaddingRight = UDim.new(0, 5)
+            expandedPadding.PaddingBottom = UDim.new(0, 5)
+            expandedPadding.Parent = moduleExpanded
+
             expandedLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-                moduleExpanded.Size = UDim2.new(1, 0, 0, expandedLayout.AbsoluteContentSize.Y + 10)
+                local height = expandedLayout.AbsoluteContentSize.Y + 10
+                TweenService:Create(moduleExpanded, TweenInfo.new(0.2), {Size = UDim2.new(1, 0, 0, moduleExpanded.Size.Y.Offset == 0 and height or 0)}):Play()
             end)
 
             -- Toggle expand
             moduleButton.MouseButton1Click:Connect(function()
-                moduleExpanded.Visible = not moduleExpanded.Visible
+                local targetHeight = moduleExpanded.Size.Y.Offset == 0 and (expandedLayout.AbsoluteContentSize.Y + 10) or 0
+                TweenService:Create(moduleExpanded, TweenInfo.new(0.2), {Size = UDim2.new(1, 0, 0, targetHeight)}):Play()
             end)
 
-            -- Keybind functionality (example, bind to toggle module)
+            -- Keybind functionality
             local boundKey = Enum.KeyCode.Unknown
+            local enabled = false
             keybindButton.MouseButton1Click:Connect(function()
-                keybindButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)  -- Waiting
-                local input = UserInputService.InputBegan:Wait()
-                if input.UserInputType == Enum.UserInputType.Keyboard then
-                    boundKey = input.KeyCode
+                keybindButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+                local _, key = UserInputService.InputBegan:Wait()
+                if key and key.UserInputType == Enum.UserInputType.Keyboard then
+                    boundKey = key.KeyCode
                     keybindButton.BackgroundColor3 = Color3.fromRGB(172, 172, 172)
                 end
             end)
 
+            UserInputService.InputBegan:Connect(function(input)
+                if input.KeyCode == boundKey then
+                    enabled = not enabled
+                    keybindButton.BackgroundColor3 = enabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(172, 172, 172)
+                    if callback then callback(enabled) end
+                end
+            end)
+
             local mod = {}
-            local elementCount = 0
 
             function mod:AddDropdown(options, default, callback)
                 local dropdownFrame = Instance.new("Frame")
                 dropdownFrame.BackgroundColor3 = Color3.fromRGB(48, 48, 48)
                 dropdownFrame.BackgroundTransparency = 0.4
-                dropdownFrame.Size = UDim2.new(1, -10, 0, 18)
+                dropdownFrame.Size = UDim2.new(1, 0, 0, 18)
                 dropdownFrame.Parent = moduleExpanded
 
                 local uICornerDrop = Instance.new("UICorner")
@@ -367,28 +394,22 @@ function Library.new(title)
                 dropButton.MouseButton1Click:Connect(function()
                     dropList.Visible = not dropList.Visible
                 end)
-
-                elementCount = elementCount + 1
             end
 
-            function mod:AddSlider(name, min, max, default, callback)
+            function mod:AddSlider(name, min, max, default, callback, isFloat)
                 local sliderFrame = Instance.new("Frame")
-                sliderFrame.BackgroundColor3 = Color3.fromRGB(77, 77, 77)
-                sliderFrame.Size = UDim2.new(1, -10, 0, 20)
+                sliderFrame.BackgroundTransparency = 1
+                sliderFrame.Size = UDim2.new(1, 0, 0, 30)
                 sliderFrame.Parent = moduleExpanded
-
-                local uICornerSlider = Instance.new("UICorner")
-                uICornerSlider.CornerRadius = UDim.new(1, 0)
-                uICornerSlider.Parent = sliderFrame
 
                 local sliderName = Instance.new("TextLabel")
                 sliderName.Font = Enum.Font.GothamSemibold
                 sliderName.TextColor3 = Color3.fromRGB(162, 162, 162)
                 sliderName.Text = name
                 sliderName.BackgroundTransparency = 1
-                sliderName.Position = UDim2.new(0.05, 0, 0, 0)
+                sliderName.Position = UDim2.new(0, 0, 0, 0)
                 sliderName.TextSize = 14
-                sliderName.Size = UDim2.new(0.4, 0, 1, 0)
+                sliderName.Size = UDim2.new(0.5, 0, 0.5, 0)
                 sliderName.Parent = sliderFrame
 
                 local sliderValue = Instance.new("TextLabel")
@@ -396,21 +417,34 @@ function Library.new(title)
                 sliderValue.TextColor3 = Color3.fromRGB(162, 162, 162)
                 sliderValue.Text = tostring(default)
                 sliderValue.BackgroundTransparency = 1
-                sliderValue.Position = UDim2.new(0.8, 0, 0, 0)
+                sliderValue.Position = UDim2.new(0.7, 0, 0, 0)
                 sliderValue.TextSize = 14
-                sliderValue.Size = UDim2.new(0.2, 0, 1, 0)
+                sliderValue.Size = UDim2.new(0.3, 0, 0.5, 0)
                 sliderValue.Parent = sliderFrame
+
+                local sliderBarBack = Instance.new("Frame")
+                sliderBarBack.BackgroundColor3 = Color3.fromRGB(77, 77, 77)
+                sliderBarBack.Position = UDim2.new(0, 0, 0.5, 0)
+                sliderBarBack.Size = UDim2.new(1, 0, 0, 3)
+                sliderBarBack.Parent = sliderFrame
+
+                local uICornerSliderBack = Instance.new("UICorner")
+                uICornerSliderBack.CornerRadius = UDim.new(1, 0)
+                uICornerSliderBack.Parent = sliderBarBack
 
                 local sliderBar = Instance.new("Frame")
                 sliderBar.BackgroundColor3 = Color3.fromRGB(143, 143, 143)
-                sliderBar.Position = UDim2.new(0, 0, 0.7, 0)
-                sliderBar.Size = UDim2.new((default - min) / (max - min), 0, 0, 3)
-                sliderBar.Parent = sliderFrame
+                sliderBar.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
+                sliderBar.Parent = sliderBarBack
+
+                local uICornerSlider = Instance.new("UICorner")
+                uICornerSlider.CornerRadius = UDim.new(1, 0)
+                uICornerSlider.Parent = sliderBar
 
                 local sliderKnob = Instance.new("TextButton")
                 sliderKnob.Text = ""
                 sliderKnob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-                sliderKnob.Position = UDim2.new(1, -5, -0.5, 0)
+                sliderKnob.Position = UDim2.new(1, -5, 0, -3.5)
                 sliderKnob.Size = UDim2.new(0, 10, 0, 10)
                 sliderKnob.Parent = sliderBar
 
@@ -419,37 +453,71 @@ function Library.new(title)
                 uICornerKnob.Parent = sliderKnob
 
                 local value = default
+                local dragging = false
+
                 sliderKnob.InputBegan:Connect(function(input)
                     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                        local conn = RunService.RenderStepped:Connect(function()
-                            local mousePos = UserInputService:GetMouseLocation()
-                            local rel = math.clamp((mousePos.X - sliderFrame.AbsolutePosition.X) / sliderFrame.AbsoluteSize.X, 0, 1)
-                            value = min + (max - min) * rel
-                            value = math.floor(value)
-                            sliderValue.Text = tostring(value)
-                            sliderBar.Size = UDim2.new(rel, 0, 0, 3)
-                            if callback then callback(value) end
-                        end)
-                        local endConn = input.Changed:Connect(function()
-                            if input.UserInputState == Enum.UserInputState.End then
-                                conn:Disconnect()
-                                endConn:Disconnect()
-                            end
-                        end)
+                        dragging = true
                     end
                 end)
 
-                elementCount = elementCount + 1
+                UserInputService.InputEnded:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                        dragging = false
+                    end
+                end)
+
+                RunService.RenderStepped:Connect(function()
+                    if dragging then
+                        local mousePos = UserInputService:GetMouseLocation()
+                        local rel = math.clamp((mousePos.X - sliderBarBack.AbsolutePosition.X) / sliderBarBack.AbsoluteSize.X, 0, 1)
+                        value = min + (max - min) * rel
+                        if not isFloat then value = math.floor(value + 0.5) end
+                        sliderValue.Text = tostring(value)
+                        sliderBar.Size = UDim2.new(rel, 0, 1, 0)
+                        if callback then callback(value) end
+                    end
+                end)
             end
 
-            -- Add more elements like toggles, buttons, etc., similarly
+            function mod:AddToggle(name, default, callback)
+                local toggleFrame = Instance.new("Frame")
+                toggleFrame.BackgroundTransparency = 1
+                toggleFrame.Size = UDim2.new(1, 0, 0, 20)
+                toggleFrame.Parent = moduleExpanded
 
-            moduleCount = moduleCount + 1
+                local toggleLabel = Instance.new("TextLabel")
+                toggleLabel.Font = Enum.Font.GothamSemibold
+                toggleLabel.TextColor3 = Color3.fromRGB(162, 162, 162)
+                toggleLabel.Text = name
+                toggleLabel.BackgroundTransparency = 1
+                toggleLabel.Position = UDim2.new(0, 0, 0, 0)
+                toggleLabel.TextSize = 14
+                toggleLabel.Size = UDim2.new(0.8, 0, 1, 0)
+                toggleLabel.Parent = toggleFrame
+
+                local toggleButton = Instance.new("TextButton")
+                toggleButton.BackgroundColor3 = default and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(172, 172, 172)
+                toggleButton.Size = UDim2.new(0, 20, 0, 20)
+                toggleButton.Position = UDim2.new(0.8, 0, 0, 0)
+                toggleButton.Text = ""
+                toggleButton.Parent = toggleFrame
+
+                local uICornerToggle = Instance.new("UICorner")
+                uICornerToggle.CornerRadius = UDim.new(0, 4)
+                uICornerToggle.Parent = toggleButton
+
+                local toggled = default
+                toggleButton.MouseButton1Click:Connect(function()
+                    toggled = not toggled
+                    toggleButton.BackgroundColor3 = toggled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(172, 172, 172)
+                    if callback then callback(toggled) end
+                end)
+            end
+
+            -- Add more methods as needed
+
             return mod
-        end
-
-        if #tabs == 1 then
-            tabButton:SimulateClick()  -- Select first tab by default
         end
 
         return tab
@@ -460,23 +528,42 @@ end
 
 return Library
 
--- Usage example:
+-- Updated Usage example:
 --[[
-local uiLib = require(script.Parent.UILibrary)  -- Assuming this is a ModuleScript
-local ui = uiLib.new("My Hub")
+local uiLib = require(script.Parent.UILibrary)  -- Adjust path
+local ui = uiLib.new("Anerial.cc - Test UI")
 
 local tab1 = ui:AddTab("Blatant", "rbxassetid://10734951847")
-local mod1 = tab1:AddModule("Auto Parry")
-mod1:AddSlider("Parry Accuracy", 0, 100, 50, function(val)
-    print("Parry Accuracy set to", val)
+
+local mod1 = tab1:AddModule("Auto Parry", function(enabled)
+    print("Auto Parry enabled:", enabled)
 end)
-mod1:AddDropdown({"Custom", "Preset1", "Preset2"}, "Custom", function(opt)
-    print("Selected", opt)
+mod1:AddDropdown({"Custom", "Preset1", "Preset2"}, "Custom", function(selected)
+    print("Dropdown selected:", selected)
+end)
+mod1:AddSlider("Parry Accuracy", 0, 100, 50, function(value)
+    print("Parry Accuracy:", value)
 end)
 
-local tab2 = ui:AddTab("Utility")
-local mod2 = tab2:AddModule("Auto Spam")
-mod2:AddSlider("Spam Rate", 1, 10, 5, function(val)
-    print("Spam Rate set to", val)
+local mod2 = tab1:AddModule("Auto Spam", function(enabled)
+    print("Auto Spam enabled:", enabled)
 end)
+mod2:AddToggle("Enable Spam", false, function(toggled)
+    print("Spam toggled:", toggled)
+end)
+mod2:AddSlider("Spam Rate", 1, 10, 5, function(value)
+    print("Spam Rate:", value)
+end)
+
+local tab2 = ui:AddTab("Visuals", "rbxassetid://10734951847")
+
+local mod3 = tab2:AddModule("ESP", function(enabled)
+    print("ESP enabled:", enabled)
+end)
+mod3:AddDropdown({"Wallhack", "Chams", "Tracers"}, "Wallhack", function(selected)
+    print("ESP mode:", selected)
+end)
+mod3:AddSlider("Opacity", 0, 1, 0.5, function(value)
+    print("Opacity:", value)
+end, true)  -- Float slider
 --]]
