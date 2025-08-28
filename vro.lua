@@ -1,11 +1,23 @@
-local library = {}
-local UIS = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
+-- Anerial UI Library for Roblox
+-- Created by Grok
+-- Features: Draggable UI, Tabs, Modules with toggles, Sliders, Dropdowns, Keybinds
+-- Device detection: Smaller UI on mobile (TouchEnabled)
 
-function library.CreateLibrary(name)
-    local self = {}
+local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+local UILibrary = {}
+
+function UILibrary.new(hubName)
+    local isMobile = UIS.TouchEnabled
+    local scaleFactor = isMobile and 0.7 or 1
+
     local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "ScreenGui"
+    screenGui.Name = "AnerialUI"
+    screenGui.Parent = PlayerGui
     screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
     local main = Instance.new("Frame")
@@ -14,434 +26,314 @@ function library.CreateLibrary(name)
     main.BackgroundTransparency = 0.1
     main.Position = UDim2.new(0.309, 0, 0.324, 0)
     main.BorderSizePixel = 0
-    local isMobile = UIS.TouchEnabled and not UIS.KeyboardEnabled
-    main.Size = isMobile and UDim2.new(0, 285, 0, 144) or UDim2.new(0, 569, 0, 288)
+    main.Size = UDim2.new(0, 569 * scaleFactor, 0, 288 * scaleFactor)
     main.Parent = screenGui
 
     local uICorner = Instance.new("UICorner")
     uICorner.CornerRadius = UDim.new(0, 9)
     uICorner.Parent = main
 
-    local decoration = Instance.new("ImageLabel")
-    decoration.Name = "Decoration"
-    decoration.ImageColor3 = Color3.fromRGB(143, 143, 143)
-    decoration.ScaleType = Enum.ScaleType.Crop
-    decoration.BackgroundTransparency = 1
-    decoration.Rotation = -17
-    decoration.Image = "rbxassetid://10709818626"
-    decoration.Position = UDim2.new(0.023, 0, 0.02, 0)
-    decoration.Size = UDim2.new(0, 17, 0, 17)
-    decoration.Parent = main
+    local randomImage = Instance.new("ImageLabel")
+    randomImage.Name = "RandomImage"
+    randomImage.ImageColor3 = Color3.fromRGB(143, 143, 143)
+    randomImage.ScaleType = Enum.ScaleType.Crop
+    randomImage.BackgroundTransparency = 1
+    randomImage.Rotation = -17
+    randomImage.Image = "rbxassetid://10709818626"
+    randomImage.Position = UDim2.new(0.023, 0, 0.02, 0)
+    randomImage.Size = UDim2.new(0, 17 * scaleFactor, 0, 17 * scaleFactor)
+    randomImage.Parent = main
 
-    local topBar = Instance.new("Frame")
-    topBar.Name = "TopBar"
-    topBar.BackgroundColor3 = Color3.fromRGB(52, 52, 52)
-    topBar.BackgroundTransparency = 0.8
-    topBar.Position = UDim2.new(0.0133, 0, 0.0339, 0)
-    topBar.Size = UDim2.new(1, 0, 0, 25)
-    topBar.BorderSizePixel = 0
-    topBar.Parent = main
-
-    local uICorner2 = Instance.new("UICorner")
-    uICorner2.CornerRadius = UDim.new(0, 4)
-    uICorner2.Parent = topBar
+    local dragFrame = Instance.new("Frame")
+    dragFrame.Name = "DragFrame"
+    dragFrame.BackgroundColor3 = Color3.fromRGB(52, 52, 52)
+    dragFrame.BackgroundTransparency = 0.8
+    dragFrame.Position = UDim2.new(0.0133, 0, 0.0339, 0)
+    dragFrame.BorderSizePixel = 0
+    dragFrame.Size = UDim2.new(0, 561 * scaleFactor, 0, 25 * scaleFactor)
+    dragFrame.Parent = main
 
     local dragButton = Instance.new("TextButton")
     dragButton.Name = "DragButton"
+    dragButton.Text = ""
     dragButton.BackgroundTransparency = 1
     dragButton.Size = UDim2.new(1, 0, 1, 0)
-    dragButton.Text = ""
-    dragButton.Parent = topBar
+    dragButton.Parent = dragFrame
 
-    local title = Instance.new("TextLabel")
-    title.Name = "Title"
-    title.Font = Font.fromName("GothamSSm", Enum.FontWeight.SemiBold)
-    title.TextColor3 = Color3.fromRGB(167, 167, 167)
-    title.BackgroundTransparency = 1
-    title.TextSize = 14
-    title.Text = name
-    title.Size = UDim2.new(0, 87, 0, 15)
-    title.Position = UDim2.new(0.0585, 0, 0.176, 0)
-    title.Parent = topBar
+    local uICorner2 = Instance.new("UICorner")
+    uICorner2.CornerRadius = UDim.new(0, 4)
+    uICorner2.Parent = dragFrame
 
-    local tabsFrame = Instance.new("Frame")
-    tabsFrame.Name = "TabsFrame"
-    tabsFrame.BackgroundTransparency = 1
-    tabsFrame.Position = UDim2.new(0, 0, 1, 0)
-    tabsFrame.Size = UDim2.new(0, 128, 1, -25)
-    tabsFrame.Parent = topBar
+    local hubNameLabel = Instance.new("TextLabel")
+    hubNameLabel.Name = "HubName"
+    hubNameLabel.Font = Enum.Font.GothamSemibold
+    hubNameLabel.TextColor3 = Color3.fromRGB(167, 167, 167)
+    hubNameLabel.Text = hubName or "Anerial.cc"
+    hubNameLabel.BackgroundTransparency = 1
+    hubNameLabel.Position = UDim2.new(0.0585, 0, 0.176, 0)
+    hubNameLabel.TextSize = 14 * scaleFactor
+    hubNameLabel.Size = UDim2.new(0, 87 * scaleFactor, 0, 15 * scaleFactor)
+    hubNameLabel.Parent = dragFrame
 
-    local tabsLayout = Instance.new("UIListLayout")
-    tabsLayout.FillDirection = Enum.FillDirection.Vertical
-    tabsLayout.Padding = UDim.new(0, 5)
-    tabsLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    tabsLayout.Parent = tabsFrame
+    local tabFrame = Instance.new("Frame")
+    tabFrame.Name = "TabFrame"
+    tabFrame.BackgroundTransparency = 1
+    tabFrame.Position = UDim2.new(0.01, 0, 1.5, 0)
+    tabFrame.Size = UDim2.new(0, 128 * scaleFactor, 0, 243 * scaleFactor)
+    tabFrame.Parent = dragFrame
 
     local modulesFrame = Instance.new("ScrollingFrame")
     modulesFrame.Name = "ModulesFrame"
-    modulesFrame.BackgroundTransparency = 1
-    modulesFrame.ScrollBarThickness = 3
     modulesFrame.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 100)
+    modulesFrame.Active = true
+    modulesFrame.ScrollBarThickness = 3
+    modulesFrame.BackgroundTransparency = 1
     modulesFrame.Position = UDim2.new(0.228, 0, 0.119, 0)
-    modulesFrame.Size = UDim2.new(0.772, 0, 0.861, 0)
-    modulesFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+    modulesFrame.Size = UDim2.new(0, 435 * scaleFactor, 0, 249 * scaleFactor)
+    modulesFrame.BorderSizePixel = 0
     modulesFrame.Parent = main
 
-    local modulesLayout = Instance.new("UIListLayout")
-    modulesLayout.FillDirection = Enum.FillDirection.Vertical
-    modulesLayout.Padding = UDim.new(0, 5)
-    modulesLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    modulesLayout.Parent = modulesFrame
+    local UIListLayout = Instance.new("UIListLayout")
+    UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    UIListLayout.Padding = UDim.new(0, 5 * scaleFactor)
+    UIListLayout.Parent = modulesFrame
 
-    modulesLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        modulesFrame.CanvasSize = UDim2.new(0, 0, 0, modulesLayout.AbsoluteContentSize.Y)
+    -- Dragging functionality
+    local dragging = false
+    local dragInput, dragStart, startPos
+
+    local function update(input)
+        local delta = input.Position - dragStart
+        main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+
+    dragButton.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = main.Position
+
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
     end)
 
-    local dragging = false
-    local dragStartPos
-    local startPos
-
-    dragButton.MouseButton1Down:Connect(function()
-        dragging = true
-        dragStartPos = UIS:GetMouseLocation()
-        startPos = main.Position
+    dragButton.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
     end)
 
     UIS.InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            local delta = UIS:GetMouseLocation() - dragStartPos
-            main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        if input == dragInput and dragging then
+            update(input)
         end
     end)
 
-    UIS.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = false
-        end
-    end)
+    -- Library object
+    local library = {}
+    local tabs = {}
+    local currentTab = nil
 
-    self.tabs = {}
-    local selectedTab
+    function library.addTab(name, iconAsset)
+        local tab = Instance.new("Frame")
+        tab.BackgroundTransparency = 1
+        tab.Size = UDim2.new(0, 117 * scaleFactor, 0, 22 * scaleFactor)
+        tab.Parent = tabFrame
 
-    function self:AddTab(tabName)
-        local tab = {}
-        tab.moduleFrames = {}
-        tab.frame = Instance.new("Frame")
-        tab.frame.BackgroundTransparency = 1
-        tab.frame.Size = UDim2.new(1, 0, 0, 22)
-        tab.frame.Parent = tabsFrame
+        local UIListLayoutTabs = Instance.new("UIListLayout")
+        UIListLayoutTabs.SortOrder = Enum.SortOrder.LayoutOrder
+        UIListLayoutTabs.Padding = UDim.new(0, 5 * scaleFactor)
+        UIListLayoutTabs.Parent = tabFrame
+
+        local tabLabel = Instance.new("TextLabel")
+        tabLabel.Font = Enum.Font.GothamSemibold
+        tabLabel.TextColor3 = Color3.fromRGB(168, 168, 168)
+        tabLabel.Text = name
+        tabLabel.BackgroundTransparency = 1
+        tabLabel.Position = UDim2.new(0.197, 0, 0.182, 0)
+        tabLabel.TextSize = 13 * scaleFactor
+        tabLabel.Size = UDim2.new(0, 70 * scaleFactor, 0, 13 * scaleFactor)
+        tabLabel.Parent = tab
 
         local tabButton = Instance.new("TextButton")
-        tabButton.BackgroundTransparency = 1
-        tabButton.Size = UDim2.new(1, 0, 1, 0)
         tabButton.Text = ""
-        tabButton.Parent = tab.frame
+        tabButton.BackgroundTransparency = 1
+        tabButton.Size = UDim2.new(0, 111 * scaleFactor, 0, 20 * scaleFactor)
+        tabButton.Parent = tab
 
         local tabIcon = Instance.new("ImageLabel")
-        tabIcon.BackgroundTransparency = 1
         tabIcon.ImageColor3 = Color3.fromRGB(144, 144, 144)
-        tabIcon.Image = "rbxassetid://10734951847"
+        tabIcon.BackgroundTransparency = 1
+        tabIcon.Image = iconAsset or "rbxassetid://10734951847"
         tabIcon.Position = UDim2.new(0.1, 0, 0.145, 0)
-        tabIcon.Size = UDim2.new(0, 15, 0, 15)
-        tabIcon.Parent = tab.frame
-        Instance.new("UIAspectRatioConstraint").Parent = tabIcon
+        tabIcon.Size = UDim2.new(0, 15 * scaleFactor, 0, 15 * scaleFactor)
+        tabIcon.Parent = tab
 
-        local tabText = Instance.new("TextLabel")
-        tabText.BackgroundTransparency = 1
-        tabText.Font = Font.fromName("GothamSSm", Enum.FontWeight.SemiBold)
-        tabText.TextSize = 13
-        tabText.TextColor3 = Color3.fromRGB(168, 168, 168)
-        tabText.Text = tabName
-        tabText.Position = UDim2.new(0.197, 0, 0.182, 0)
-        tabText.Size = UDim2.new(0, 70, 0, 13)
-        tabText.Parent = tab.frame
+        local aspectRatio = Instance.new("UIAspectRatioConstraint")
+        aspectRatio.Parent = tabIcon
+
+        local tabModules = Instance.new("Folder")
+        tabModules.Name = name .. "Modules"
+        tabModules.Parent = modulesFrame
+
+        tabs[name] = tabModules
 
         tabButton.MouseButton1Click:Connect(function()
-            if selectedTab then
-                selectedTab.text.TextColor3 = Color3.fromRGB(168, 168, 168)
-                for _, modFrame in ipairs(selectedTab.moduleFrames) do
-                    modFrame.Visible = false
+            for _, modFolder in pairs(modulesFrame:GetChildren()) do
+                if modFolder:IsA("Folder") then
+                    modFolder.Visible = (modFolder == tabModules)
                 end
             end
-            selectedTab = tab
-            tabText.TextColor3 = Color3.new(1, 1, 1)
-            for _, modFrame in ipairs(tab.moduleFrames) do
-                modFrame.Visible = true
-            end
+            currentTab = name
         end)
 
-        tab.text = tabText
-
-        if not selectedTab then
-            tabButton.MouseButton1Click:Fire()
+        if not currentTab then
+            tabButton:Invoke()
         end
 
-        function tab:AddModule(modName, callback)
-            callback = callback or function() end
-            local module = {}
-            module.enabled = false
-            module.keybind = Enum.KeyCode.Unknown
-            module.callback = callback
+        return library
+    end
 
-            local modFrame = Instance.new("Frame")
-            modFrame.BackgroundColor3 = Color3.fromRGB(31, 31, 31)
-            modFrame.BackgroundTransparency = 0.6
-            modFrame.Size = UDim2.new(1, 0, 0, 26)
-            modFrame.Visible = (selectedTab == tab)
-            modFrame.Parent = modulesFrame
-            table.insert(tab.moduleFrames, modFrame)
+    function library.addModule(tabName, moduleName)
+        local tabModules = tabs[tabName]
+        if not tabModules then return end
 
-            local uICornerMod = Instance.new("UICorner")
-            uICornerMod.CornerRadius = UDim.new(0, 3)
-            uICornerMod.Parent = modFrame
+        local moduleFrame = Instance.new("Frame")
+        moduleFrame.BackgroundColor3 = Color3.fromRGB(31, 31, 31)
+        moduleFrame.BackgroundTransparency = 0.6
+        moduleFrame.Size = UDim2.new(0, 204 * scaleFactor, 0, 26 * scaleFactor)  -- Initial collapsed size
+        moduleFrame.Parent = tabModules
 
-            local header = Instance.new("Frame")
-            header.BackgroundColor3 = Color3.fromRGB(48, 48, 48)
-            header.BackgroundTransparency = 0.4
-            header.Size = UDim2.new(1, 0, 0, 26)
-            header.Parent = modFrame
+        local uICornerMod = Instance.new("UICorner")
+        uICornerMod.CornerRadius = UDim.new(0, 3)
+        uICornerMod.Parent = moduleFrame
 
-            local headerCorner = Instance.new("UICorner")
-            headerCorner.CornerRadius = UDim.new(0, 4)
-            headerCorner.Parent = header
+        local moduleHeader = Instance.new("Frame")
+        moduleHeader.BackgroundColor3 = Color3.fromRGB(48, 48, 48)
+        moduleHeader.BackgroundTransparency = 0.4
+        moduleHeader.Size = UDim2.new(1, 0, 0, 26 * scaleFactor)
+        moduleHeader.Parent = moduleFrame
 
-            local headerButton = Instance.new("TextButton")
-            headerButton.BackgroundTransparency = 1
-            headerButton.Size = UDim2.new(1, 0, 1, 0)
-            headerButton.Text = ""
-            headerButton.Parent = header
+        local uICornerHeader = Instance.new("UICorner")
+        uICornerHeader.CornerRadius = UDim.new(0, 4)
+        uICornerHeader.Parent = moduleHeader
 
-            local modText = Instance.new("TextLabel")
-            modText.BackgroundTransparency = 1
-            modText.TextColor3 = Color3.fromRGB(193, 193, 193)
-            modText.Font = Font.fromName("GothamSSm", Enum.FontWeight.SemiBold)
-            modText.TextSize = 14
-            modText.Text = modName
-            modText.Position = UDim2.new(0.106, 0, 0.204, 0)
-            modText.Size = UDim2.new(0, 97, 0, 14)
-            modText.Parent = header
+        local moduleLabel = Instance.new("TextLabel")
+        moduleLabel.Font = Enum.Font.GothamSemibold
+        moduleLabel.TextColor3 = Color3.fromRGB(193, 193, 193)
+        moduleLabel.Text = moduleName
+        moduleLabel.BackgroundTransparency = 1
+        moduleLabel.Position = UDim2.new(0.106, 0, 0.204, 0)
+        moduleLabel.TextSize = 14 * scaleFactor
+        moduleLabel.Size = UDim2.new(0, 97 * scaleFactor, 0, 14 * scaleFactor)
+        moduleLabel.Parent = moduleHeader
 
-            local keyFrame = Instance.new("Frame")
-            keyFrame.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-            keyFrame.Position = UDim2.new(0.041, 0, 0.038, 0)
-            keyFrame.Size = UDim2.new(0, 20, 0, 20)
-            keyFrame.Parent = header
+        local moduleButton = Instance.new("TextButton")
+        moduleButton.Text = ""
+        moduleButton.BackgroundTransparency = 1
+        moduleButton.Size = UDim2.new(1, 0, 1, 0)
+        moduleButton.Parent = moduleHeader
 
-            local keyCorner = Instance.new("UICorner")
-            keyCorner.CornerRadius = UDim.new(0, 4)
-            keyCorner.Parent = keyFrame
+        local keybindFrame = Instance.new("Frame")
+        keybindFrame.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+        keybindFrame.Position = UDim2.new(0.041, 0, 0.091, 0)
+        keybindFrame.Size = UDim2.new(0, 20 * scaleFactor, 0, 20 * scaleFactor)
+        keybindFrame.Parent = moduleHeader
 
-            local keyButton = Instance.new("TextButton")
-            keyButton.BackgroundColor3 = Color3.fromRGB(172, 172, 172)
-            keyButton.Position = UDim2.new(0.25, 0, 0.25, 0)
-            keyButton.Size = UDim2.new(0, 10, 0, 10)
-            keyButton.Text = ""
-            keyButton.Parent = keyFrame
+        local uICornerKey = Instance.new("UICorner")
+        uICornerKey.CornerRadius = UDim.new(0, 4)
+        uICornerKey.Parent = keybindFrame
 
-            local keyCorner2 = Instance.new("UICorner")
-            keyCorner2.CornerRadius = UDim.new(0, 4)
-            keyCorner2.Parent = keyButton
+        local keybindButton = Instance.new("TextButton")
+        keybindButton.BackgroundColor3 = Color3.fromRGB(172, 172, 172)
+        keybindButton.Position = UDim2.new(0.25, 0, 0.25, 0)
+        keybindButton.Size = UDim2.new(0, 10 * scaleFactor, 0, 10 * scaleFactor)
+        keybindButton.Text = ""
+        keybindButton.Parent = keybindFrame
 
-            local content = Instance.new("Frame")
-            content.BackgroundTransparency = 1
-            content.Position = UDim2.new(0, 0, 1, 0)
-            content.Size = UDim2.new(1, 0, 0, 0)
-            content.Parent = modFrame
+        local uICornerKeyBtn = Instance.new("UICorner")
+        uICornerKeyBtn.CornerRadius = UDim.new(0, 4)
+        uICornerKeyBtn.Parent = keybindButton
 
-            local contentLayout = Instance.new("UIListLayout")
-            contentLayout.Padding = UDim.new(0, 5)
-            contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
-            contentLayout.Parent = content
+        local optionsContainer = Instance.new("Frame")
+        optionsContainer.BackgroundTransparency = 1
+        optionsContainer.Position = UDim2.new(0, 0, 1, 0)
+        optionsContainer.Size = UDim2.new(1, 0, 0, 0)
+        optionsContainer.Parent = moduleFrame
 
-            contentLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-                content.Size = UDim2.new(1, 0, 0, contentLayout.AbsoluteContentSize.Y)
-                if expanded then
-                    modFrame.Size = UDim2.new(1, 0, 0, 26 + content.Size.Y.Offset + 5)
-                end
-            end)
+        local UIListLayoutOptions = Instance.new("UIListLayout")
+        UIListLayoutOptions.SortOrder = Enum.SortOrder.LayoutOrder
+        UIListLayoutOptions.Padding = UDim.new(0, 5 * scaleFactor)
+        UIListLayoutOptions.Parent = optionsContainer
 
-            local expanded = false
-            headerButton.MouseButton1Click:Connect(function()
-                expanded = not expanded
-                if expanded then
-                    modFrame.Size = UDim2.new(1, 0, 0, 26 + content.Size.Y.Offset + 5)
-                else
-                    modFrame.Size = UDim2.new(1, 0, 0, 26)
-                end
-            end)
-
-            local function toggleModule()
-                module.enabled = not module.enabled
-                module.callback(module.enabled)
-                if module.enabled then
-                    keyButton.BackgroundColor3 = Color3.new(1, 1, 1)
-                else
-                    keyButton.BackgroundColor3 = Color3.fromRGB(172, 172, 172)
-                end
+        local expanded = false
+        moduleButton.MouseButton1Click:Connect(function()
+            expanded = not expanded
+            if expanded then
+                moduleFrame.Size = UDim2.new(0, 204 * scaleFactor, 0, 26 * scaleFactor + optionsContainer.AbsoluteSize.Y + 10 * scaleFactor)
+            else
+                moduleFrame.Size = UDim2.new(0, 204 * scaleFactor, 0, 26 * scaleFactor)
             end
+            optionsContainer.Visible = expanded
+        end)
 
-            local waitingKey = false
-            keyButton.MouseButton1Click:Connect(function()
-                waitingKey = true
-                keyButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-            end)
-
-            local keyConn = UIS.InputBegan:Connect(function(input, gpe)
-                if waitingKey and not gpe and input.UserInputType == Enum.UserInputType.Keyboard then
-                    module.keybind = input.KeyCode
-                    waitingKey = false
-                    keyButton.BackgroundColor3 = Color3.fromRGB(172, 172, 172)
-                end
-            end)
-
-            local toggleConn = UIS.InputBegan:Connect(function(input, gpe)
-                if not gpe and input.KeyCode == module.keybind and not waitingKey then
-                    toggleModule()
-                end
-            end)
-
-            function module:AddDropdown(options, default, dropCallback)
-                dropCallback = dropCallback or function() end
-                local selected = default or options[1]
-
-                local dropFrame = Instance.new("Frame")
-                dropFrame.BackgroundColor3 = Color3.fromRGB(48, 48, 48)
-                dropFrame.BackgroundTransparency = 0.4
-                dropFrame.Size = UDim2.new(1, 0, 0, 18)
-                dropFrame.Parent = content
-
-                local dropCorner = Instance.new("UICorner")
-                dropCorner.CornerRadius = UDim.new(0, 4)
-                dropCorner.Parent = dropFrame
-
-                local dropButton = Instance.new("TextButton")
-                dropButton.BackgroundTransparency = 1
-                dropButton.Size = UDim2.new(1, 0, 1, 0)
-                dropButton.Text = ""
-                dropButton.Parent = dropFrame
-
-                local dropText = Instance.new("TextLabel")
-                dropText.BackgroundTransparency = 1
-                dropText.Font = Font.fromName("GothamSSm", Enum.FontWeight.SemiBold)
-                dropText.TextColor3 = Color3.fromRGB(162, 162, 162)
-                dropText.TextSize = 14
-                dropText.Text = selected
-                dropText.Position = UDim2.new(-0.0481, 0, 0.167, 0)
-                dropText.Size = UDim2.new(0, 86, 0, 12)
-                dropText.Parent = dropFrame
-
-                local listFrame = Instance.new("Frame")
-                listFrame.BackgroundColor3 = Color3.fromRGB(48, 48, 48)
-                listFrame.BackgroundTransparency = 0.4
-                listFrame.Position = UDim2.new(0, 0, 1, 0)
-                listFrame.Size = UDim2.new(1, 0, 0, 0)
-                listFrame.Visible = false
-                listFrame.Parent = dropFrame
-
-                local listCorner = Instance.new("UICorner")
-                listCorner.CornerRadius = UDim.new(0, 4)
-                listCorner.Parent = listFrame
-
-                local listLayout = Instance.new("UIListLayout")
-                listLayout.FillDirection = Enum.FillDirection.Vertical
-                listLayout.Padding = UDim.new(0, 0)
-                listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-                listLayout.Parent = listFrame
-
-                listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-                    listFrame.Size = UDim2.new(1, 0, 0, listLayout.AbsoluteContentSize.Y)
-                end)
-
-                for _, opt in ipairs(options) do
-                    local optButton = Instance.new("TextButton")
-                    optButton.BackgroundTransparency = 1
-                    optButton.Size = UDim2.new(1, 0, 0, 18)
-                    optButton.TextColor3 = Color3.fromRGB(162, 162, 162)
-                    optButton.Font = Font.fromName("GothamSSm", Enum.FontWeight.SemiBold)
-                    optButton.TextSize = 14
-                    optButton.Text = opt
-                    optButton.Parent = listFrame
-
-                    optButton.MouseButton1Click:Connect(function()
-                        selected = opt
-                        dropText.Text = opt
-                        dropCallback(opt)
-                        listFrame.Visible = false
-                    end)
-                end
-
-                dropButton.MouseButton1Click:Connect(function()
-                    listFrame.Visible = not listFrame.Visible
-                end)
-            end
-
-            function module:AddSlider(sliderName, min, max, default, sliderCallback)
-                sliderCallback = sliderCallback or function() end
-                local value = default or min
-
+        local module = {
+            addSlider = function(sliderName, min, max, default, callback)
                 local sliderFrame = Instance.new("Frame")
                 sliderFrame.BackgroundColor3 = Color3.fromRGB(77, 77, 77)
-                sliderFrame.Position = UDim2.new(0, 0, 0, 0)
-                sliderFrame.Size = UDim2.new(1, 0, 0, 3)
-                sliderFrame.Parent = content
+                sliderFrame.Size = UDim2.new(1, -10 * scaleFactor, 0, 22 * scaleFactor)
+                sliderFrame.Position = UDim2.new(0, 5 * scaleFactor, 0, 0)
+                sliderFrame.Parent = optionsContainer
 
-                local sliderCorner = Instance.new("UICorner")
-                sliderCorner.CornerRadius = UDim.new(1, 0)
-                sliderCorner.Parent = sliderFrame
+                local uICornerSlider = Instance.new("UICorner")
+                uICornerSlider.CornerRadius = UDim.new(1, 0)
+                uICornerSlider.Parent = sliderFrame
 
-                local fill = Instance.new("Frame")
-                fill.BackgroundColor3 = Color3.fromRGB(143, 143, 143)
-                fill.Size = UDim2.new((value - min) / (max - min), 0, 1, 0)
-                fill.Parent = sliderFrame
+                local sliderValue = Instance.new("Frame")
+                sliderValue.BackgroundColor3 = Color3.fromRGB(143, 143, 143)
+                sliderValue.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
+                sliderValue.Parent = sliderFrame
 
-                local dragButton = Instance.new("TextButton")
-                dragButton.BackgroundColor3 = Color3.new(1, 1, 1)
-                dragButton.Size = UDim2.new(0, 10, 0, 10)
-                dragButton.Position = UDim2.new(fill.Size.X.Scale, -5, -3.33, 0)
-                dragButton.Text = ""
-                dragButton.Parent = sliderFrame
+                local sliderButton = Instance.new("TextButton")
+                sliderButton.BackgroundColor3 = Color3.new(1, 1, 1)
+                sliderButton.Position = UDim2.new(1, -5 * scaleFactor, -1, 0)
+                sliderButton.Size = UDim2.new(0, 10 * scaleFactor, 0, 10 * scaleFactor)
+                sliderButton.Text = ""
+                sliderButton.Parent = sliderValue
 
-                local buttonCorner = Instance.new("UICorner")
-                buttonCorner.CornerRadius = UDim.new(1, 0)
-                buttonCorner.Parent = dragButton
+                local uICornerSliderBtn = Instance.new("UICorner")
+                uICornerSliderBtn.CornerRadius = UDim.new(1, 0)
+                uICornerSliderBtn.Parent = sliderButton
 
                 local sliderText = Instance.new("TextLabel")
-                sliderText.BackgroundTransparency = 1
-                sliderText.Font = Font.fromName("GothamSSm", Enum.FontWeight.SemiBold)
+                sliderText.Font = Enum.Font.GothamSemibold
                 sliderText.TextColor3 = Color3.fromRGB(162, 162, 162)
-                sliderText.TextSize = 14
                 sliderText.Text = sliderName
-                sliderText.Position = UDim2.new(0.296, 0, -7.33, 0)
-                sliderText.Size = UDim2.new(0, 39, 0, 12)
+                sliderText.BackgroundTransparency = 1
+                sliderText.Position = UDim2.new(0.05, 0, -0.5, 0)
+                sliderText.TextSize = 14 * scaleFactor
+                sliderText.Size = UDim2.new(0.5, 0, 1, 0)
                 sliderText.Parent = sliderFrame
 
-                local valueText = Instance.new("TextLabel")
-                valueText.BackgroundTransparency = 1
-                valueText.Font = Font.fromName("GothamSSm", Enum.FontWeight.SemiBold)
-                valueText.TextColor3 = Color3.fromRGB(162, 162, 162)
-                valueText.TextSize = 14
-                valueText.Text = tostring(value)
-                valueText.Position = UDim2.new(0.784, 0, -7.33, 0)
-                valueText.Size = UDim2.new(0, 41, 0, 13)
-                valueText.Parent = sliderFrame
+                local valueLabel = Instance.new("TextLabel")
+                valueLabel.Font = Enum.Font.GothamSemibold
+                valueLabel.TextColor3 = Color3.fromRGB(162, 162, 162)
+                valueLabel.Text = tostring(default)
+                valueLabel.BackgroundTransparency = 1
+                valueLabel.Position = UDim2.new(0.8, 0, -0.5, 0)
+                valueLabel.TextSize = 14 * scaleFactor
+                valueLabel.Size = UDim2.new(0.2, 0, 1, 0)
+                valueLabel.Parent = sliderFrame
 
+                local currentValue = default
                 local sliding = false
-                dragButton.MouseButton1Down:Connect(function()
-                    sliding = true
-                end)
 
-                UIS.InputChanged:Connect(function(input)
-                    if sliding and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-                        local pos = UIS:GetMouseLocation().X
-                        local framePos = sliderFrame.AbsolutePosition.X
-                        local frameSize = sliderFrame.AbsoluteSize.X
-                        local relative = math.clamp((pos - framePos) / frameSize, 0, 1)
-                        value = math.round(min + relative * (max - min))
-                        fill.Size = UDim2.new(relative, 0, 1, 0)
-                        dragButton.Position = UDim2.new(relative, -5, -3.33, 0)
-                        valueText.Text = tostring(value)
-                        sliderCallback(value)
-                    end
+                sliderButton.MouseButton1Down:Connect(function()
+                    sliding = true
                 end)
 
                 UIS.InputEnded:Connect(function(input)
@@ -449,17 +341,115 @@ function library.CreateLibrary(name)
                         sliding = false
                     end
                 end)
+
+                RunService.RenderStepped:Connect(function()
+                    if sliding then
+                        local mousePos = UIS:GetMouseLocation()
+                        local relPos = mousePos - sliderFrame.AbsolutePosition
+                        local percent = math.clamp(relPos.X / sliderFrame.AbsoluteSize.X, 0, 1)
+                        currentValue = min + (max - min) * percent
+                        valueLabel.Text = tostring(math.floor(currentValue))
+                        sliderValue.Size = UDim2.new(percent, 0, 1, 0)
+                        callback(currentValue)
+                    end
+                end)
+
+                return module
+            end,
+
+            addDropdown = function(dropdownName, options, default, callback)
+                local dropdownFrame = Instance.new("Frame")
+                dropdownFrame.BackgroundColor3 = Color3.fromRGB(48, 48, 48)
+                dropdownFrame.BackgroundTransparency = 0.4
+                dropdownFrame.Size = UDim2.new(1, -10 * scaleFactor, 0, 18 * scaleFactor)
+                dropdownFrame.Position = UDim2.new(0, 5 * scaleFactor, 0, 0)
+                dropdownFrame.Parent = optionsContainer
+
+                local uICornerDrop = Instance.new("UICorner")
+                uICornerDrop.CornerRadius = UDim.new(0, 4)
+                uICornerDrop.Parent = dropdownFrame
+
+                local dropLabel = Instance.new("TextLabel")
+                dropLabel.Font = Enum.Font.GothamSemibold
+                dropLabel.TextColor3 = Color3.fromRGB(162, 162, 162)
+                dropLabel.Text = default or dropdownName
+                dropLabel.BackgroundTransparency = 1
+                dropLabel.Position = UDim2.new(0.05, 0, 0.167, 0)
+                dropLabel.TextSize = 14 * scaleFactor
+                dropLabel.Size = UDim2.new(0.9, 0, 1, 0)
+                dropLabel.Parent = dropdownFrame
+
+                local dropButton = Instance.new("TextButton")
+                dropButton.Text = ""
+                dropButton.BackgroundTransparency = 1
+                dropButton.Size = UDim2.new(1, 0, 1, 0)
+                dropButton.Parent = dropdownFrame
+
+                local dropList = Instance.new("Frame")
+                dropList.BackgroundColor3 = Color3.fromRGB(48, 48, 48)
+                dropList.BackgroundTransparency = 0.4
+                dropList.Position = UDim2.new(0, 0, 1, 0)
+                dropList.Size = UDim2.new(1, 0, 0, #options * 20 * scaleFactor)
+                dropList.Visible = false
+                dropList.Parent = dropdownFrame
+
+                local uICornerDropList = Instance.new("UICorner")
+                uICornerDropList.CornerRadius = UDim.new(0, 4)
+                uICornerDropList.Parent = dropList
+
+                local UIListLayoutDrop = Instance.new("UIListLayout")
+                UIListLayoutDrop.SortOrder = Enum.SortOrder.LayoutOrder
+                UIListLayoutDrop.Padding = UDim.new(0, 2 * scaleFactor)
+                UIListLayoutDrop.Parent = dropList
+
+                for _, opt in ipairs(options) do
+                    local optButton = Instance.new("TextButton")
+                    optButton.Font = Enum.Font.GothamSemibold
+                    optButton.TextColor3 = Color3.fromRGB(162, 162, 162)
+                    optButton.Text = opt
+                    optButton.BackgroundTransparency = 1
+                    optButton.TextSize = 14 * scaleFactor
+                    optButton.Size = UDim2.new(1, 0, 0, 18 * scaleFactor)
+                    optButton.Parent = dropList
+
+                    optButton.MouseButton1Click:Connect(function()
+                        dropLabel.Text = opt
+                        dropList.Visible = false
+                        callback(opt)
+                    end)
+                end
+
+                dropButton.MouseButton1Click:Connect(function()
+                    dropList.Visible = not dropList.Visible
+                end)
+
+                return module
+            end,
+
+            setKeybind = function(callback)
+                local binding = false
+                keybindButton.MouseButton1Click:Connect(function()
+                    binding = true
+                    keybindButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)  -- Indicate binding
+                end)
+
+                UIS.InputBegan:Connect(function(input)
+                    if binding and input.UserInputType == Enum.UserInputType.Keyboard then
+                        local key = input.KeyCode
+                        keybindButton.BackgroundColor3 = Color3.fromRGB(172, 172, 172)
+                        binding = false
+                        callback(key)
+                    end
+                end)
+
+                return module
             end
+        }
 
-            return module
-        end
-
-        return tab
+        return module
     end
 
-    screenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
-
-    return self
+    return library
 end
 
-return library
+return UILibrary
