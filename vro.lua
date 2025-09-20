@@ -741,6 +741,85 @@ function AstralUI:_createToggle(tab, name, default, callback)
     return toggle
 end
 
+function AstralUI:_createKeybind(tab, name, default, callback)
+    local keybind = {
+        name = name,
+        key = default or Enum.KeyCode.Unknown,
+        callback = callback,
+        listening = false
+    }
+    
+    -- Main keybind frame
+    keybind.frame = Instance.new("Frame")
+    keybind.frame.Name = name .. "Keybind"
+    keybind.frame.BackgroundTransparency = 1
+    keybind.frame.BorderSizePixel = 0
+    keybind.frame.Size = UDim2.new(0, 216, 0, 35)
+    keybind.frame.Parent = tab.frame
+    
+    -- Title
+    local title = Instance.new("TextLabel")
+    title.Name = "Title"
+    title.Font = Enum.Font.GothamMedium
+    title.Text = name
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.TextScaled = true
+    title.TextTransparency = 0.5
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.BackgroundTransparency = 1
+    title.AnchorPoint = Vector2.new(0, 0.5)
+    title.Position = UDim2.new(0, 0, 0.4, 0)
+    title.Size = UDim2.new(0, 150, 0, 12)
+    title.Parent = keybind.frame
+    
+    createTextSizeConstraint(title, 12)
+    
+    -- Keybind button
+    local button = Instance.new("TextButton")
+    button.Name = "Button"
+    button.Font = Enum.Font.GothamMedium
+    button.Text = keybind.key.Name
+    button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    button.TextSize = 12
+    button.TextTransparency = 0.5
+    button.AutoButtonColor = false
+    button.BackgroundColor3 = Color3.fromRGB(48, 48, 48)
+    button.BackgroundTransparency = 0.5
+    button.BorderSizePixel = 0
+    button.AnchorPoint = Vector2.new(1, 0.5)
+    button.Position = UDim2.new(1, 0, 0.4, 0)
+    button.Size = UDim2.new(0, 60, 0, 18)
+    button.Parent = keybind.frame
+    
+    createCorner(button, 5)
+    
+    -- Keybind functionality
+    button.MouseButton1Click:Connect(function()
+        if keybind.listening then return end
+        
+        keybind.listening = true
+        button.Text = "..."
+        
+        local connection
+        connection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+            if gameProcessed then return end
+            
+            if input.UserInputType == Enum.UserInputType.Keyboard then
+                keybind.key = input.KeyCode
+                button.Text = input.KeyCode.Name
+                keybind.listening = false
+                connection:Disconnect()
+                
+                if callback then
+                    callback(input.KeyCode)
+                end
+            end
+        end)
+    end)
+    
+    return keybind
+end
+
 -- Utility Methods
 function AstralUI:Toggle()
     self.container.Visible = not self.container.Visible
