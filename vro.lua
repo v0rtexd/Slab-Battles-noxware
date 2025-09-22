@@ -1,834 +1,1008 @@
--- Astral UI Library
--- A modern, dark-themed UI library for Roblox
+-- Flow UI Library v1.0
+-- A modular Roblox UI Library with Tabs, Modules, Toggles, Sliders, Dropdowns, Keybinds
+-- Supports Device Detection for Scaling (PC: Full, Tablet: Normal, Mobile: 0.7 Scale)
+-- Usage:
+-- local Flow = loadstring(game:HttpGet("your_script_url"))()
+-- Flow:Init()
+-- local Tab1 = Flow:AddTab("Blatant", "rbxassetid://icon_id")
+-- local Module1 = Tab1:AddModule("Auto Parry")
+-- Module1:AddToggle("Enabled", function(state) print("Toggle:", state) end)
+-- Module1:AddSlider("Speed", 1, 100, 50, function(value) print("Slider:", value) end)
+-- etc.
 
-local AstralUI = {}
-AstralUI.__index = AstralUI
-
--- Services
-local TweenService = game:GetService("TweenService")
+local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local CoreGui = game:GetService("CoreGui")
 
--- Constants
-local TWEEN_INFO = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local Player = Players.LocalPlayer
 
--- Utility Functions
-local function createCorner(parent, radius)
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, radius or 5)
-    corner.Parent = parent
-    return corner
-end
+local Flow = {}
+Flow.Tabs = {}
+Flow.Sections = {}
+Flow.CurrentTab = nil
 
-local function createTextSizeConstraint(parent, maxSize, minSize)
-    local constraint = Instance.new("UITextSizeConstraint")
-    constraint.MaxTextSize = maxSize or 12
-    constraint.MinTextSize = minSize or maxSize or 12
-    constraint.Parent = parent
-    return constraint
-end
+-- Device Detection
+local isTouchEnabled = UserInputService.TouchEnabled
+local isKeyboardEnabled = UserInputService.KeyboardEnabled
+local deviceType = "PC"
 
-local function createPadding(parent, padding)
-    local uiPadding = Instance.new("UIPadding")
-    if typeof(padding) == "number" then
-        uiPadding.PaddingTop = UDim.new(0, padding)
-        uiPadding.PaddingBottom = UDim.new(0, padding)
-        uiPadding.PaddingLeft = UDim.new(0, padding)
-        uiPadding.PaddingRight = UDim.new(0, padding)
-    elseif typeof(padding) == "table" then
-        uiPadding.PaddingTop = UDim.new(0, padding.Top or 0)
-        uiPadding.PaddingBottom = UDim.new(0, padding.Bottom or 0)
-        uiPadding.PaddingLeft = UDim.new(0, padding.Left or 0)
-        uiPadding.PaddingRight = UDim.new(0, padding.Right or 0)
+if isTouchEnabled then
+    if isKeyboardEnabled then
+        deviceType = "Tablet"
+    else
+        deviceType = "Mobile"
     end
-    uiPadding.Parent = parent
-    return uiPadding
 end
 
--- Main Library Constructor
-function AstralUI.new(title)
-    local self = setmetatable({}, AstralUI)
-    
-    self.title = title or "Astral"
-    self.tabs = {}
-    self.currentTab = nil
-    self.callbacks = {}
-    
-    self:_createMainFrame()
-    
-    return self
+local scaleFactor = (deviceType == "Mobile") and 0.7 or 1
+
+local function scaleUDim2(udim2, factor)
+    return UDim2.new(udim2.X.Scale * factor, udim2.X.Offset * factor, udim2.Y.Scale * factor, udim2.Y.Offset * factor)
 end
 
-function AstralUI:_createMainFrame()
-    -- Main ScreenGui
-    self.screenGui = Instance.new("ScreenGui")
-    self.screenGui.Name = "AstralUI"
-    self.screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    self.screenGui.Parent = game:GetService("CoreGui")
-    
-    -- Container Frame
-    self.container = Instance.new("Frame")
-    self.container.Name = "Container"
-    self.container.AnchorPoint = Vector2.new(0.5, 0.5)
-    self.container.BackgroundColor3 = Color3.fromRGB(13, 13, 13)
-    self.container.BackgroundTransparency = 0.1
-    self.container.BorderSizePixel = 0
-    self.container.Position = UDim2.new(0.5, 0, 0.5, 0)
-    self.container.Size = UDim2.new(0, 640, 0, 355)
-    self.container.Active = true
-    self.container.Parent = self.screenGui
-    
-    createCorner(self.container, 10)
-    
-    -- Make draggable
-    self:_makeDraggable()
-    
+local originalSizes = {
+    Container = UDim2.new(0, 640, 0, 355),
+    Tabs = UDim2.new(0, 138, 0, 308),
+    Section = UDim2.new(0, 237, 0, 306),
+    Module = UDim2.new(0, 237, 0, 189),
+    Settings = UDim2.new(0, 237, 0, 161),
+    Dropdown = UDim2.new(0, 216, 0, 127),
+    Box = UDim2.new(0, 218, 0, 18),
+    OptionsExpanded = UDim2.new(0, 218, 0, 103),
+    Options = UDim2.new(0, 218, 0, 85),
+    List = UDim2.new(0, 218, 0, 85),
+    Option = UDim2.new(0, 205, 0, 17),
+    Slider = UDim2.new(0, 216, 0, 27),
+    Drag = UDim2.new(0, 217, 0, 4),
+    Fill1 = UDim2.new(0, 217, 0, 4),
+    Circle = UDim2.new(0, 6, 0, 6),
+    Header2 = UDim2.new(0, 237, 0, 28),
+    Keybind = UDim2.new(0, 33, 0, 28),
+    Background = UDim2.new(0, 20, 0, 20),
+    Mobile = UDim2.new(0.036, 0, 0.044, 0),
+    Tab = UDim2.new(0, 138, 0, 27)
+}
+
+local function createInstance(class, properties)
+    local inst = Instance.new(class)
+    for prop, value in pairs(properties) do
+        inst[prop] = value
+    end
+    return inst
+end
+
+function Flow:Init()
+    -- Core GUI
+    self.ScreenGui = createInstance("ScreenGui", {ZIndexBehavior = Enum.ZIndexBehavior.Sibling, Name = "Flow", Parent = CoreGui})
+
+    self.Container = createInstance("Frame", {
+        Active = true,
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundColor3 = Color3.fromRGB(13, 13, 13),
+        BackgroundTransparency = 0.1,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        Size = scaleUDim2(originalSizes.Container, scaleFactor),
+        Name = "Container",
+        Parent = self.ScreenGui
+    })
+
+    local frame = createInstance("Frame", {
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        Size = UDim2.new(0.95, 0, 0.95, 0),
+        Parent = self.Container
+    })
+
+    local corner = createInstance("UICorner", {CornerRadius = UDim.new(0, 10 * scaleFactor), Parent = self.Container})
+
     -- Header
-    self:_createHeader()
-    
-    -- Tabs Section
-    self:_createTabsSection()
-    
-    -- Content Sections
-    self:_createContentSections()
-    
-    -- Mobile Toggle Button
-    self:_createMobileToggle()
-end
+    local header = createInstance("Frame", {
+        BackgroundColor3 = Color3.fromRGB(27, 27, 27),
+        BackgroundTransparency = 0.5,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0.0125, 0, 0.0225, 0),
+        Size = scaleUDim2(UDim2.new(0, 624, 0, 24), scaleFactor),
+        Name = "Header",
+        Parent = self.Container
+    })
 
-function AstralUI:_makeDraggable()
-    local dragging = false
-    local dragStart = nil
-    local startPos = nil
-    
-    self.container.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = true
-            dragStart = input.Position
-            startPos = self.container.Position
-        end
-    end)
-    
-    UserInputService.InputChanged:Connect(function(input)
-        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            local delta = input.Position - dragStart
-            self.container.Position = UDim2.new(
-                startPos.X.Scale,
-                startPos.X.Offset + delta.X,
-                startPos.Y.Scale,
-                startPos.Y.Offset + delta.Y
-            )
-        end
-    end)
-    
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = false
-        end
-    end)
-end
+    local headerCorner = createInstance("UICorner", {CornerRadius = UDim.new(0, 5 * scaleFactor), Parent = header})
 
-function AstralUI:_createHeader()
-    self.header = Instance.new("Frame")
-    self.header.Name = "Header"
-    self.header.BackgroundColor3 = Color3.fromRGB(27, 27, 27)
-    self.header.BackgroundTransparency = 0.5
-    self.header.BorderSizePixel = 0
-    self.header.Position = UDim2.new(0.0125, 0, 0.0225, 0)
-    self.header.Size = UDim2.new(0, 624, 0, 24)
-    self.header.Parent = self.container
-    
-    createCorner(self.header, 5)
-    
-    -- Title
-    local titleLabel = Instance.new("TextLabel")
-    titleLabel.Name = "Title"
-    titleLabel.Font = Enum.Font.GothamBold
-    titleLabel.Text = self.title
-    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    titleLabel.TextScaled = true
-    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-    titleLabel.BackgroundTransparency = 1
-    titleLabel.AnchorPoint = Vector2.new(0, 0.5)
-    titleLabel.Position = UDim2.new(0.044, 0, 0.5, 0)
-    titleLabel.Size = UDim2.new(0, 78, 0, 12)
-    titleLabel.Parent = self.header
-    
-    createTextSizeConstraint(titleLabel, 12)
-    
+    local clientLabel = createInstance("TextLabel", {
+        Font = Enum.Font.Gotham,
+        Text = "Flow",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextScaled = true,
+        TextSize = 14 * scaleFactor,
+        TextWrapped = true,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        AnchorPoint = Vector2.new(0, 0.5),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0.044, 0, 0.5, 0),
+        Size = scaleUDim2(UDim2.new(0, 78, 0, 12), scaleFactor),
+        Name = "Client",
+        Parent = header
+    })
+
+    local clientTSC = createInstance("UITextSizeConstraint", {MaxTextSize = 12 * scaleFactor, Parent = clientLabel})
+
     -- Search Bar
-    self:_createSearchBar()
-end
+    local searchBar = createInstance("Frame", {
+        AnchorPoint = Vector2.new(1, 0.5),
+        BackgroundColor3 = Color3.fromRGB(33, 33, 33),
+        BackgroundTransparency = 0.5,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0.995, 0, 0.5, 0),
+        Size = scaleUDim2(UDim2.new(0, 64, 0, 17), scaleFactor),
+        Name = "SearchBar",
+        Parent = header
+    })
 
-function AstralUI:_createSearchBar()
-    local searchBar = Instance.new("Frame")
-    searchBar.Name = "SearchBar"
-    searchBar.AnchorPoint = Vector2.new(1, 0.5)
-    searchBar.BackgroundColor3 = Color3.fromRGB(33, 33, 33)
-    searchBar.BackgroundTransparency = 0.5
-    searchBar.BorderSizePixel = 0
-    searchBar.Position = UDim2.new(0.995, 0, 0.5, 0)
-    searchBar.Size = UDim2.new(0, 64, 0, 17)
-    searchBar.Parent = self.header
-    
-    createCorner(searchBar, 4)
-    createPadding(searchBar, {Left = 9})
-    
-    local input = Instance.new("TextBox")
-    input.Name = "Input"
-    input.ClearTextOnFocus = false
-    input.Font = Enum.Font.Gotham
-    input.PlaceholderColor3 = Color3.fromRGB(255, 255, 255)
-    input.PlaceholderText = "Search"
-    input.Text = ""
-    input.TextColor3 = Color3.fromRGB(255, 255, 255)
-    input.TextSize = 10
-    input.TextTransparency = 0.5
-    input.TextXAlignment = Enum.TextXAlignment.Left
-    input.BackgroundTransparency = 1
-    input.AnchorPoint = Vector2.new(0, 0.5)
-    input.Position = UDim2.new(0, 0, 0.5, 0)
-    input.Size = UDim2.new(0, 39, 0, 14)
-    input.Parent = searchBar
-    
-    createTextSizeConstraint(input, 10)
-end
+    local searchCorner = createInstance("UICorner", {CornerRadius = UDim.new(0, 4 * scaleFactor), Parent = searchBar})
 
-function AstralUI:_createTabsSection()
-    self.tabsFrame = Instance.new("ScrollingFrame")
-    self.tabsFrame.Name = "Tabs"
-    self.tabsFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    self.tabsFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-    self.tabsFrame.ScrollBarImageTransparency = 1
-    self.tabsFrame.ScrollBarThickness = 0
-    self.tabsFrame.BackgroundTransparency = 1
-    self.tabsFrame.BorderSizePixel = 0
-    self.tabsFrame.Position = UDim2.new(0.0125, 0, 0.11, 0)
-    self.tabsFrame.Size = UDim2.new(0, 138, 0, 308)
-    self.tabsFrame.Parent = self.container
-    
-    local listLayout = Instance.new("UIListLayout")
-    listLayout.Padding = UDim.new(0, 6)
-    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    listLayout.Parent = self.tabsFrame
-end
+    local input = createInstance("TextBox", {
+        ClearTextOnFocus = false,
+        Font = Enum.Font.Gotham,
+        PlaceholderColor3 = Color3.fromRGB(255, 255, 255),
+        PlaceholderText = "Search",
+        Text = "",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextSize = 10 * scaleFactor,
+        TextTransparency = 0.5,
+        TextWrapped = true,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        AnchorPoint = Vector2.new(0, 0.5),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 0, 0.5, 0),
+        Size = scaleUDim2(UDim2.new(0, 39, 0, 14), scaleFactor),
+        Name = "Input",
+        Parent = searchBar
+    })
 
-function AstralUI:_createContentSections()
-    self.sectionsFolder = Instance.new("Folder")
-    self.sectionsFolder.Name = "Sections"
-    self.sectionsFolder.Parent = self.container
-    
-    -- Left Section
-    self.leftSection = Instance.new("ScrollingFrame")
-    self.leftSection.Name = "LeftSection"
-    self.leftSection.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    self.leftSection.CanvasSize = UDim2.new(0, 0, 0, 0)
-    self.leftSection.ScrollBarImageTransparency = 1
-    self.leftSection.ScrollBarThickness = 0
-    self.leftSection.BackgroundTransparency = 1
-    self.leftSection.BorderSizePixel = 0
-    self.leftSection.Position = UDim2.new(0.24, 0, 0.11, 0)
-    self.leftSection.Size = UDim2.new(0, 237, 0, 306)
-    self.leftSection.Parent = self.sectionsFolder
-    
-    local leftLayout = Instance.new("UIListLayout")
-    leftLayout.Padding = UDim.new(0, 6)
-    leftLayout.Parent = self.leftSection
-    
-    -- Right Section
-    self.rightSection = Instance.new("ScrollingFrame")
-    self.rightSection.Name = "RightSection"
-    self.rightSection.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    self.rightSection.CanvasSize = UDim2.new(0, 0, 0, 0)
-    self.rightSection.ScrollBarImageTransparency = 1
-    self.rightSection.ScrollBarThickness = 0
-    self.rightSection.BackgroundTransparency = 1
-    self.rightSection.BorderSizePixel = 0
-    self.rightSection.Position = UDim2.new(0.62, 0, 0.11, 0)
-    self.rightSection.Size = UDim2.new(0, 237, 0, 306)
-    self.rightSection.Parent = self.sectionsFolder
-    
-    local rightLayout = Instance.new("UIListLayout")
-    rightLayout.Padding = UDim.new(0, 6)
-    rightLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    rightLayout.Parent = self.rightSection
-end
+    local inputTSC = createInstance("UITextSizeConstraint", {MaxTextSize = 10 * scaleFactor, Parent = input})
 
-function AstralUI:_createMobileToggle()
-    self.mobileButton = Instance.new("TextButton")
-    self.mobileButton.Name = "MobileToggle"
-    self.mobileButton.Font = Enum.Font.SourceSans
-    self.mobileButton.Text = ""
-    self.mobileButton.AutoButtonColor = false
-    self.mobileButton.AnchorPoint = Vector2.new(0.5, 0)
-    self.mobileButton.BackgroundColor3 = Color3.fromRGB(13, 13, 13)
-    self.mobileButton.BackgroundTransparency = 0.1
-    self.mobileButton.BorderSizePixel = 0
-    self.mobileButton.Position = UDim2.new(0.5, 0, 0.903, 0)
-    self.mobileButton.Size = UDim2.new(0.036, 0, 0.044, 0)
-    self.mobileButton.Parent = self.screenGui
-    
-    createCorner(self.mobileButton, 10)
-    
-    self.mobileButton.MouseButton1Click:Connect(function()
-        self:Toggle()
-    end)
-end
+    local searchPadding = createInstance("UIPadding", {PaddingLeft = UDim.new(0, 9 * scaleFactor), Parent = searchBar})
 
--- Tab Management
-function AstralUI:CreateTab(name, icon)
-    local tab = {
-        name = name,
-        icon = icon,
-        elements = {},
-        frame = nil,
-        button = nil,
-        visible = false
-    }
-    
-    -- Create tab button
-    tab.button = Instance.new("TextButton")
-    tab.button.Name = name .. "Tab"
-    tab.button.Font = Enum.Font.SourceSans
-    tab.button.Text = ""
-    tab.button.AutoButtonColor = false
-    tab.button.BackgroundColor3 = Color3.fromRGB(27, 27, 27)
-    tab.button.BackgroundTransparency = 0.5
-    tab.button.BorderSizePixel = 0
-    tab.button.Size = UDim2.new(0, 138, 0, 27)
-    tab.button.Parent = self.tabsFrame
-    
-    createCorner(tab.button, 5)
-    
-    -- Tab title
-    local title = Instance.new("TextLabel")
-    title.Name = "Title"
-    title.Font = Enum.Font.Gotham
-    title.Text = name
-    title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.TextScaled = true
-    title.TextXAlignment = Enum.TextXAlignment.Left
-    title.BackgroundTransparency = 1
-    title.AnchorPoint = Vector2.new(0, 0.5)
-    title.Position = UDim2.new(0.225, 0, 0.5, 0)
-    title.Size = UDim2.new(0, 75, 0, 12)
-    title.Parent = tab.button
-    
-    createTextSizeConstraint(title, 12)
-    
-    -- Tab click handler
-    tab.button.MouseButton1Click:Connect(function()
-        self:_selectTab(tab)
-    end)
-    
-    -- Create tab content frame
-    tab.frame = Instance.new("Frame")
-    tab.frame.Name = name .. "Content"
-    tab.frame.BackgroundColor3 = Color3.fromRGB(27, 27, 27)
-    tab.frame.BackgroundTransparency = 0.5
-    tab.frame.BorderSizePixel = 0
-    tab.frame.ClipsDescendants = true
-    tab.frame.Size = UDim2.new(0, 237, 0, 0)
-    tab.frame.Visible = false
-    tab.frame.Parent = self.leftSection
-    
-    createCorner(tab.frame, 5)
-    
-    -- Content layout
-    local contentLayout = Instance.new("UIListLayout")
-    contentLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    contentLayout.Padding = UDim.new(0, 3)
-    contentLayout.Parent = tab.frame
-    
-    createPadding(tab.frame, 10)
-    
-    table.insert(self.tabs, tab)
-    
-    -- Select first tab automatically
-    if #self.tabs == 1 then
-        self:_selectTab(tab)
-    end
-    
-    return self:_createTabAPI(tab)
-end
+    local iconBG = createInstance("ImageLabel", {
+        Image = "rbxassetid://137743164814611",
+        AnchorPoint = Vector2.new(1, 0.5),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = UDim2.new(1, 0, 0.5, 0),
+        Size = scaleUDim2(UDim2.new(0, 17, 0, 17), scaleFactor),
+        Name = "IconBG",
+        Parent = searchBar
+    })
 
-function AstralUI:_selectTab(selectedTab)
-    -- Hide all tabs
-    for _, tab in pairs(self.tabs) do
-        tab.frame.Visible = false
-        tab.button.BackgroundTransparency = 0.5
-        tab.visible = false
-    end
-    
-    -- Show selected tab
-    selectedTab.frame.Visible = true
-    selectedTab.button.BackgroundTransparency = 0.2
-    selectedTab.visible = true
-    self.currentTab = selectedTab
-    
-    self:_updateTabSize(selectedTab)
-end
+    local icon = createInstance("ImageLabel", {
+        Image = "rbxassetid://86686259429503",
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        Size = scaleUDim2(UDim2.new(0, 9, 0, 9), scaleFactor),
+        Name = "Icon",
+        Parent = iconBG
+    })
 
-function AstralUI:_updateTabSize(tab)
-    local contentSize = 0
-    for _, element in pairs(tab.elements) do
-        if element.frame and element.frame.Visible then
-            contentSize = contentSize + element.frame.AbsoluteSize.Y + 6
-        end
-    end
-    
-    tab.frame.Size = UDim2.new(0, 237, 0, math.max(contentSize + 20, 50))
-end
+    -- Tabs ScrollingFrame
+    self.TabsFrame = createInstance("ScrollingFrame", {
+        AutomaticCanvasSize = Enum.AutomaticSize.X,
+        ScrollBarImageTransparency = 1,
+        ScrollBarThickness = 0,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0.0125, 0, 0.11, 0),
+        Size = scaleUDim2(originalSizes.Tabs, scaleFactor),
+        Name = "Tabs",
+        Parent = self.Container
+    })
 
-function AstralUI:_createTabAPI(tab)
-    local tabAPI = {}
-    
-    function tabAPI:CreateDropdown(name, options, callback)
-        local dropdown = self:_createDropdown(tab, name, options, callback)
-        table.insert(tab.elements, dropdown)
-        self:_updateTabSize(tab)
-        return dropdown
-    end
-    
-    function tabAPI:CreateSlider(name, min, max, default, callback)
-        local slider = self:_createSlider(tab, name, min, max, default, callback)
-        table.insert(tab.elements, slider)
-        self:_updateTabSize(tab)
-        return slider
-    end
-    
-    function tabAPI:CreateKeybind(name, default, callback)
-        local keybind = self:_createKeybind(tab, name, default, callback)
-        table.insert(tab.elements, keybind)
-        self:_updateTabSize(tab)
-        return keybind
-    end
-    
-    function tabAPI:CreateToggle(name, default, callback)
-        local toggle = self:_createToggle(tab, name, default, callback)
-        table.insert(tab.elements, toggle)
-        self:_updateTabSize(tab)
-        return toggle
-    end
-    
-    return tabAPI
-end
+    local tabsLayout = createInstance("UIListLayout", {Padding = UDim.new(0, 6 * scaleFactor), SortOrder = Enum.SortOrder.LayoutOrder, Parent = self.TabsFrame})
 
--- UI Elements
-function AstralUI:_createDropdown(tab, name, options, callback)
-    local dropdown = {
-        name = name,
-        options = options or {},
-        selected = options and options[1] or "None",
-        callback = callback,
-        open = false
-    }
-    
-    -- Main dropdown frame
-    dropdown.frame = Instance.new("Frame")
-    dropdown.frame.Name = name .. "Dropdown"
-    dropdown.frame.BackgroundTransparency = 1
-    dropdown.frame.BorderSizePixel = 0
-    dropdown.frame.Size = UDim2.new(0, 216, 0, 45)
-    dropdown.frame.Parent = tab.frame
-    
-    -- Title
-    local title = Instance.new("TextLabel")
-    title.Name = "Title"
-    title.Font = Enum.Font.GothamMedium
-    title.Text = name
-    title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.TextScaled = true
-    title.TextTransparency = 0.5
-    title.TextXAlignment = Enum.TextXAlignment.Left
-    title.BackgroundTransparency = 1
-    title.Size = UDim2.new(0, 215, 0, 12)
-    title.Parent = dropdown.frame
-    
-    createTextSizeConstraint(title, 12)
-    
-    -- Dropdown box
-    local box = Instance.new("TextButton")
-    box.Name = "Box"
-    box.Font = Enum.Font.GothamMedium
-    box.Text = dropdown.selected
-    box.TextColor3 = Color3.fromRGB(255, 255, 255)
-    box.TextSize = 12
-    box.TextTransparency = 0.5
-    box.TextXAlignment = Enum.TextXAlignment.Left
-    box.AutoButtonColor = false
-    box.BackgroundColor3 = Color3.fromRGB(48, 48, 48)
-    box.BackgroundTransparency = 0.5
-    box.BorderSizePixel = 0
-    box.AnchorPoint = Vector2.new(0.5, 0)
-    box.Position = UDim2.new(0.5, 0, 0.4, 0)
-    box.Size = UDim2.new(0, 218, 0, 18)
-    box.Parent = dropdown.frame
-    
-    createCorner(box, 5)
-    createPadding(box, {Left = 10})
-    
-    -- Options container
-    local optionsContainer = Instance.new("Frame")
-    optionsContainer.Name = "Options"
-    optionsContainer.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-    optionsContainer.BackgroundTransparency = 0.2
-    optionsContainer.BorderSizePixel = 0
-    optionsContainer.ClipsDescendants = true
-    optionsContainer.AnchorPoint = Vector2.new(0.5, 0)
-    optionsContainer.Position = UDim2.new(0.5, 0, 1.1, 0)
-    optionsContainer.Size = UDim2.new(0, 218, 0, 0)
-    optionsContainer.Visible = false
-    optionsContainer.Parent = box
-    
-    createCorner(optionsContainer, 5)
-    
-    local optionsList = Instance.new("UIListLayout")
-    optionsList.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    optionsList.Parent = optionsContainer
-    
-    -- Create option buttons
-    for _, option in pairs(dropdown.options) do
-        local optionButton = Instance.new("TextButton")
-        optionButton.Name = option
-        optionButton.Font = Enum.Font.GothamMedium
-        optionButton.Text = option
-        optionButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-        optionButton.TextSize = 12
-        optionButton.TextTransparency = 0.5
-        optionButton.TextXAlignment = Enum.TextXAlignment.Left
-        optionButton.BackgroundTransparency = 1
-        optionButton.BorderSizePixel = 0
-        optionButton.Size = UDim2.new(0, 205, 0, 17)
-        optionButton.Parent = optionsContainer
-        
-        createPadding(optionButton, {Left = 10})
-        createTextSizeConstraint(optionButton, 12)
-        
-        optionButton.MouseButton1Click:Connect(function()
-            dropdown.selected = option
-            box.Text = option
-            dropdown.open = false
-            optionsContainer.Visible = false
-            
-            if callback then
-                callback(option)
+    -- Sections Folder
+    self.SectionsFolder = createInstance("Folder", {Name = "Sections", Parent = self.Container})
+
+    -- Mobile Button
+    local mobileBtn = createInstance("TextButton", {
+        AutoButtonColor = false,
+        AnchorPoint = Vector2.new(0.5, 0),
+        BackgroundColor3 = Color3.fromRGB(13, 13, 13),
+        BackgroundTransparency = 0.1,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0.5, 0, 0.9, 0),
+        Size = scaleUDim2(originalSizes.Mobile, scaleFactor),
+        Name = "Mobile",
+        Parent = self.ScreenGui
+    })
+
+    local mobileCorner = createInstance("UICorner", {CornerRadius = UDim.new(0, 10 * scaleFactor), Parent = mobileBtn})
+
+    local mobileIcon = createInstance("ImageLabel", {
+        Image = "rbxassetid://85235558678018",
+        ImageTransparency = 0.4,
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        Size = UDim2.new(0.2586, 0, 0.5, 0),
+        Name = "Icon",
+        Parent = mobileBtn
+    })
+
+    local mobileARC = createInstance("UIAspectRatioConstraint", {AspectRatio = 1.6111111640930176, Parent = mobileBtn})
+
+    -- UIScale
+    local uiScale = createInstance("UIScale", {Scale = scaleFactor, Parent = self.Container})
+
+    -- Aspect Ratio
+    local arc = createInstance("UIAspectRatioConstraint", {AspectRatio = 1.8028168678283691, Parent = self.ScreenGui})
+
+    -- Search Functionality
+    input:GetPropertyChangedSignal("Text"):Connect(function()
+        local query = input.Text:lower()
+        for _, section in ipairs(self.Sections) do
+            for _, module in ipairs(section:GetChildren()) do
+                if module:IsA("Frame") and module:FindFirstChild("Header") then
+                    module.Visible = query == "" or string.find(module.Header.Title.Text:lower(), query)
+                end
             end
-        end)
-    end
-    
-    -- Toggle dropdown
-    box.MouseButton1Click:Connect(function()
-        dropdown.open = not dropdown.open
-        optionsContainer.Visible = dropdown.open
-        
-        if dropdown.open then
-            optionsContainer.Size = UDim2.new(0, 218, 0, #dropdown.options * 17)
-        else
-            optionsContainer.Size = UDim2.new(0, 218, 0, 0)
         end
     end)
-    
-    return dropdown
+
+    -- Mobile Toggle
+    mobileBtn.MouseButton1Click:Connect(function()
+        self.Container.Visible = not self.Container.Visible
+    end)
+
+    -- Templates (Hidden)
+    self.ModuleTemplate = self:createModuleTemplate()
+    self.SettingsTemplate = self.ModuleTemplate.Settings
+    self.DropdownTemplate = self:createDropdownTemplate()
+    self.SliderTemplate = self:createSliderTemplate()
+    self.KeybindTemplate = self:createKeybindTemplate()
+    self.ToggleTemplate = self:createToggleTemplate()
+    self.OptionTemplate = self:createOptionTemplate()
+
+    print("Flow UI Library Initialized - Device:", deviceType, "Scale:", scaleFactor)
 end
 
-function AstralUI:_createSlider(tab, name, min, max, default, callback)
-    local slider = {
-        name = name,
-        min = min or 0,
-        max = max or 100,
-        value = default or min or 0,
-        callback = callback,
-        dragging = false
-    }
-    
-    -- Main slider frame
-    slider.frame = Instance.new("Frame")
-    slider.frame.Name = name .. "Slider"
-    slider.frame.BackgroundTransparency = 1
-    slider.frame.BorderSizePixel = 0
-    slider.frame.Size = UDim2.new(0, 216, 0, 35)
-    slider.frame.Parent = tab.frame
-    
-    -- Title
-    local title = Instance.new("TextLabel")
-    title.Name = "Title"
-    title.Font = Enum.Font.GothamMedium
-    title.Text = name
-    title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.TextScaled = true
-    title.TextTransparency = 0.5
-    title.TextXAlignment = Enum.TextXAlignment.Left
-    title.BackgroundTransparency = 1
-    title.AnchorPoint = Vector2.new(0, 0.5)
-    title.Position = UDim2.new(0, 0, 0.4, 0)
-    title.Size = UDim2.new(0, 172, 0, 12)
-    title.Parent = slider.frame
-    
-    createTextSizeConstraint(title, 12)
-    
-    -- Value label
-    local valueLabel = Instance.new("TextLabel")
-    valueLabel.Name = "Value"
-    valueLabel.Font = Enum.Font.GothamMedium
-    valueLabel.Text = tostring(slider.value)
-    valueLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    valueLabel.TextScaled = true
-    valueLabel.TextTransparency = 0.5
-    valueLabel.TextXAlignment = Enum.TextXAlignment.Right
-    valueLabel.BackgroundTransparency = 1
-    valueLabel.AnchorPoint = Vector2.new(1, 0.5)
-    valueLabel.Position = UDim2.new(1, 0, 0.4, 0)
-    valueLabel.Size = UDim2.new(0, 42, 0, 12)
-    valueLabel.Parent = slider.frame
-    
-    createTextSizeConstraint(valueLabel, 12)
-    
-    -- Slider track
-    local track = Instance.new("Frame")
-    track.Name = "Track"
-    track.BackgroundColor3 = Color3.fromRGB(48, 48, 48)
-    track.BackgroundTransparency = 0.5
-    track.BorderSizePixel = 0
-    track.AnchorPoint = Vector2.new(0.5, 1)
-    track.Position = UDim2.new(0.5, 0, 0.8, 0)
-    track.Size = UDim2.new(0, 217, 0, 4)
-    track.Parent = slider.frame
-    
-    createCorner(track, 2)
-    
-    -- Slider fill
-    local fill = Instance.new("Frame")
-    fill.Name = "Fill"
-    fill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    fill.BackgroundTransparency = 0.5
-    fill.BorderSizePixel = 0
-    fill.AnchorPoint = Vector2.new(0, 0.5)
-    fill.Position = UDim2.new(0, 0, 0.5, 0)
-    fill.Size = UDim2.new((slider.value - slider.min) / (slider.max - slider.min), 0, 0, 4)
-    fill.Parent = track
-    
-    createCorner(fill, 2)
-    
-    -- Slider handle
-    local handle = Instance.new("Frame")
-    handle.Name = "Handle"
-    handle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    handle.BorderSizePixel = 0
-    handle.AnchorPoint = Vector2.new(0.5, 0.5)
-    handle.Position = UDim2.new((slider.value - slider.min) / (slider.max - slider.min), 0, 0.5, 0)
-    handle.Size = UDim2.new(0, 6, 0, 6)
-    handle.Parent = fill
-    
-    createCorner(handle, 3)
-    
-    -- Slider functionality
-    local function updateSlider(input)
-        local trackPosition = track.AbsolutePosition.X
-        local trackSize = track.AbsoluteSize.X
-        local mouseX = input.Position.X
-        
-        local percentage = math.clamp((mouseX - trackPosition) / trackSize, 0, 1)
-        slider.value = math.floor(slider.min + (slider.max - slider.min) * percentage)
-        
-        valueLabel.Text = tostring(slider.value)
-        fill.Size = UDim2.new(percentage, 0, 0, 4)
-        handle.Position = UDim2.new(percentage, 0, 0.5, 0)
-        
-        if callback then
-            callback(slider.value)
-        end
-    end
-    
-    track.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            slider.dragging = true
-            updateSlider(input)
-        end
+function Flow:createModuleTemplate()
+    local module = createInstance("Frame", {
+        BackgroundColor3 = Color3.fromRGB(27, 27, 27),
+        BackgroundTransparency = 0.5,
+        BorderSizePixel = 0,
+        ClipsDescendants = true,
+        Size = scaleUDim2(originalSizes.Module, scaleFactor),
+        Name = "Module"
+    })
+
+    local mCorner = createInstance("UICorner", {CornerRadius = UDim.new(0, 5 * scaleFactor), Parent = module})
+
+    local header = createInstance("ImageButton", {
+        Image = "rbxassetid://72035547110749",
+        ImageTransparency = 0.5,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Size = scaleUDim2(originalSizes.Header2, scaleFactor),
+        Name = "Header",
+        Parent = module
+    })
+
+    local title = createInstance("TextLabel", {
+        Font = Enum.Font.Gotham,
+        Text = "Module Title",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextScaled = true,
+        TextSize = 14 * scaleFactor,
+        TextTransparency = 0.5,
+        TextWrapped = true,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        AnchorPoint = Vector2.new(0, 0.5),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0.05, 0, 0.5, 0),
+        Size = scaleUDim2(UDim2.new(0, 156, 0, 12), scaleFactor),
+        Name = "Title",
+        Parent = header
+    })
+
+    local titleTSC = createInstance("UITextSizeConstraint", {MaxTextSize = 12 * scaleFactor, Parent = title})
+
+    local arrow = createInstance("ImageLabel", {
+        Image = "rbxassetid://136776761805636",
+        ImageTransparency = 0.5,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0.9, 0, 0.286, 0),
+        Rotation = -90,
+        Size = scaleUDim2(UDim2.new(0, 11, 0, 11), scaleFactor),
+        Name = "Arrow",
+        Parent = header
+    })
+
+    local settings = createInstance("Frame", {
+        AnchorPoint = Vector2.new(0, 1),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        ClipsDescendants = true,
+        Position = UDim2.new(0, 0, 1, 0),
+        Size = scaleUDim2(originalSizes.Settings, scaleFactor),
+        Name = "Settings",
+        Parent = module
+    })
+
+    local settingsLayout = createInstance("UIListLayout", {
+        HorizontalAlignment = Enum.HorizontalAlignment.Center,
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        VerticalAlignment = Enum.VerticalAlignment.Center,
+        Parent = settings
+    })
+
+    -- Expand/Collapse
+    local expanded = false
+    header.MouseButton1Click:Connect(function()
+        expanded = not expanded
+        settings.Visible = expanded
+        arrow.Rotation = expanded and 90 or -90
+        TweenService:Create(module, TweenInfo.new(0.2), {Size = expanded and scaleUDim2(UDim2.new(0, 237, 0, 250), scaleFactor) or scaleUDim2(originalSizes.Module, scaleFactor)}):Play()
     end)
-    
-    UserInputService.InputChanged:Connect(function(input)
-        if slider.dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            updateSlider(input)
-        end
-    end)
-    
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            slider.dragging = false
-        end
-    end)
-    
-    return slider
+
+    module.Header = header
+    module.Settings = settings
+    return module
 end
 
-function AstralUI:_createToggle(tab, name, default, callback)
-    local toggle = {
-        name = name,
-        enabled = default or false,
-        callback = callback
-    }
-    
-    -- Main toggle frame
-    toggle.frame = Instance.new("TextButton")
-    toggle.frame.Name = name .. "Toggle"
-    toggle.frame.Font = Enum.Font.SourceSans
-    toggle.frame.Text = ""
-    toggle.frame.AutoButtonColor = false
-    toggle.frame.BackgroundTransparency = 1
-    toggle.frame.BorderSizePixel = 0
-    toggle.frame.Size = UDim2.new(0, 216, 0, 25)
-    toggle.frame.Parent = tab.frame
-    
-    -- Toggle switch
-    local switch = Instance.new("Frame")
-    switch.Name = "Switch"
-    switch.BackgroundColor3 = toggle.enabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(48, 48, 48)
-    switch.BackgroundTransparency = 0.3
-    switch.BorderSizePixel = 0
-    switch.AnchorPoint = Vector2.new(1, 0.5)
-    switch.Position = UDim2.new(1, 0, 0.5, 0)
-    switch.Size = UDim2.new(0, 40, 0, 20)
-    switch.Parent = toggle.frame
-    
-    createCorner(switch, 10)
-    
-    -- Toggle circle
-    local circle = Instance.new("Frame")
-    circle.Name = "Circle"
-    circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    circle.BorderSizePixel = 0
-    circle.AnchorPoint = Vector2.new(0.5, 0.5)
-    circle.Position = toggle.enabled and UDim2.new(0.75, 0, 0.5, 0) or UDim2.new(0.25, 0, 0.5, 0)
-    circle.Size = UDim2.new(0, 16, 0, 16)
-    circle.Parent = switch
-    
-    createCorner(circle, 8)
-    
-    -- Title
-    local title = Instance.new("TextLabel")
-    title.Name = "Title"
-    title.Font = Enum.Font.GothamMedium
-    title.Text = name
-    title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.TextScaled = true
-    title.TextTransparency = 0.5
-    title.TextXAlignment = Enum.TextXAlignment.Left
-    title.BackgroundTransparency = 1
-    title.AnchorPoint = Vector2.new(0, 0.5)
-    title.Position = UDim2.new(0, 0, 0.5, 0)
-    title.Size = UDim2.new(0, 150, 0, 12)
-    title.Parent = toggle.frame
-    
-    createTextSizeConstraint(title, 12)
-    
-    -- Toggle functionality
-    toggle.frame.MouseButton1Click:Connect(function()
-        toggle.enabled = not toggle.enabled
-        
-        local newColor = toggle.enabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(48, 48, 48)
-        local newPosition = toggle.enabled and UDim2.new(0.75, 0, 0.5, 0) or UDim2.new(0.25, 0, 0.5, 0)
-        
-        TweenService:Create(switch, TWEEN_INFO, {BackgroundColor3 = newColor}):Play()
-        TweenService:Create(circle, TWEEN_INFO, {Position = newPosition}):Play()
-        
-        if callback then
-            callback(toggle.enabled)
-        end
+function Flow:createToggleTemplate()
+    local toggle = createInstance("TextButton", {
+        AutoButtonColor = false,
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Size = UDim2.new(0, 216, 0, 20),
+        Name = "Toggle"
+    })
+
+    local title = createInstance("TextLabel", {
+        Font = Enum.Font.GothamMedium,
+        Text = "Toggle",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextScaled = true,
+        TextSize = 14 * scaleFactor,
+        TextTransparency = 0.5,
+        TextWrapped = true,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Size = UDim2.new(0, 172, 0, 12),
+        Name = "Title",
+        Parent = toggle
+    })
+
+    local titleTSC = createInstance("UITextSizeConstraint", {MaxTextSize = 12 * scaleFactor, Parent = title})
+
+    local indicator = createInstance("Frame", {
+        AnchorPoint = Vector2.new(0, 0.5),
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+        BackgroundTransparency = 0.5,
+        BorderSizePixel = 0,
+        Position = UDim2.new(1, -25, 0.5, 0),
+        Size = UDim2.new(0, 16, 0, 16),
+        Name = "Indicator",
+        Parent = toggle
+    })
+
+    local iCorner = createInstance("UICorner", {CornerRadius = UDim.new(0.5, 0), Parent = indicator})
+
+    local state = false
+    toggle.MouseButton1Click:Connect(function()
+        state = not state
+        indicator.BackgroundColor3 = state and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+        -- Callback will be set externally
     end)
-    
+
+    toggle.SetState = function(bool)
+        state = bool
+        indicator.BackgroundColor3 = state and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+        if toggle.Callback then toggle.Callback(state) end
+    end
+
+    toggle.GetState = function() return state end
+
     return toggle
 end
 
-function AstralUI:_createKeybind(tab, name, default, callback)
-    local keybind = {
-        name = name,
-        key = default or Enum.KeyCode.Unknown,
-        callback = callback,
-        listening = false
-    }
-    
-    -- Main keybind frame
-    keybind.frame = Instance.new("Frame")
-    keybind.frame.Name = name .. "Keybind"
-    keybind.frame.BackgroundTransparency = 1
-    keybind.frame.BorderSizePixel = 0
-    keybind.frame.Size = UDim2.new(0, 216, 0, 35)
-    keybind.frame.Parent = tab.frame
-    
-    -- Title
-    local title = Instance.new("TextLabel")
-    title.Name = "Title"
-    title.Font = Enum.Font.GothamMedium
-    title.Text = name
-    title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.TextScaled = true
-    title.TextTransparency = 0.5
-    title.TextXAlignment = Enum.TextXAlignment.Left
-    title.BackgroundTransparency = 1
-    title.AnchorPoint = Vector2.new(0, 0.5)
-    title.Position = UDim2.new(0, 0, 0.4, 0)
-    title.Size = UDim2.new(0, 150, 0, 12)
-    title.Parent = keybind.frame
-    
-    createTextSizeConstraint(title, 12)
-    
-    -- Keybind button
-    local button = Instance.new("TextButton")
-    button.Name = "Button"
-    button.Font = Enum.Font.GothamMedium
-    button.Text = keybind.key.Name
-    button.TextColor3 = Color3.fromRGB(255, 255, 255)
-    button.TextSize = 12
-    button.TextTransparency = 0.5
-    button.AutoButtonColor = false
-    button.BackgroundColor3 = Color3.fromRGB(48, 48, 48)
-    button.BackgroundTransparency = 0.5
-    button.BorderSizePixel = 0
-    button.AnchorPoint = Vector2.new(1, 0.5)
-    button.Position = UDim2.new(1, 0, 0.4, 0)
-    button.Size = UDim2.new(0, 60, 0, 18)
-    button.Parent = keybind.frame
-    
-    createCorner(button, 5)
-    
-    -- Keybind functionality
-    button.MouseButton1Click:Connect(function()
-        if keybind.listening then return end
-        
-        keybind.listening = true
-        button.Text = "..."
-        
-        local connection
-        connection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-            if gameProcessed then return end
-            
-            if input.UserInputType == Enum.UserInputType.Keyboard then
-                keybind.key = input.KeyCode
-                button.Text = input.KeyCode.Name
-                keybind.listening = false
-                connection:Disconnect()
-                
-                if callback then
-                    callback(input.KeyCode)
+function Flow:createSliderTemplate()
+    local slider = createInstance("TextButton", {
+        AutoButtonColor = false,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Size = scaleUDim2(originalSizes.Slider, scaleFactor),
+        Name = "Slider"
+    })
+
+    local title = createInstance("TextLabel", {
+        Font = Enum.Font.GothamMedium,
+        Text = "Slider",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextScaled = true,
+        TextSize = 14 * scaleFactor,
+        TextTransparency = 0.5,
+        TextWrapped = true,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        AnchorPoint = Vector2.new(0, 0.5),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 0, 0.4, 0),
+        Size = scaleUDim2(UDim2.new(0, 172, 0, 12), scaleFactor),
+        Name = "Title",
+        Parent = slider
+    })
+
+    local titleTSC = createInstance("UITextSizeConstraint", {MaxTextSize = 12 * scaleFactor, Parent = title})
+
+    local valueLabel = createInstance("TextLabel", {
+        Font = Enum.Font.GothamMedium,
+        Text = "50",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextScaled = true,
+        TextSize = 14 * scaleFactor,
+        TextTransparency = 0.5,
+        TextWrapped = true,
+        TextXAlignment = Enum.TextXAlignment.Right,
+        AnchorPoint = Vector2.new(1, 0.5),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = UDim2.new(1, 0, 0.4, 0),
+        Size = scaleUDim2(UDim2.new(0, 42, 0, 12), scaleFactor),
+        Name = "Value",
+        Parent = slider
+    })
+
+    local valueTSC = createInstance("UITextSizeConstraint", {MaxTextSize = 12 * scaleFactor, Parent = valueLabel})
+
+    local drag = createInstance("Frame", {
+        AnchorPoint = Vector2.new(0.5, 1),
+        BackgroundColor3 = Color3.fromRGB(48, 48, 48),
+        BackgroundTransparency = 0.5,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0.5, 0, 0.8, 0),
+        Size = scaleUDim2(originalSizes.Drag, scaleFactor),
+        Name = "Drag",
+        Parent = slider
+    })
+
+    local dCorner = createInstance("UICorner", {CornerRadius = UDim.new(0, 2 * scaleFactor), Parent = drag})
+
+    local fill = createInstance("Frame", {
+        AnchorPoint = Vector2.new(0, 0.5),
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+        BackgroundTransparency = 0.5,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 0, 0.5, 0),
+        Size = scaleUDim2(originalSizes.Fill1, scaleFactor),
+        Name = "Fill",
+        Parent = drag
+    })
+
+    local fCorner = createInstance("UICorner", {CornerRadius = UDim.new(0, 2 * scaleFactor), Parent = fill})
+
+    local circle = createInstance("Frame", {
+        AnchorPoint = Vector2.new(1, 0.5),
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+        BorderSizePixel = 0,
+        Position = UDim2.new(1, 0, 0.5, 0),
+        Size = scaleUDim2(originalSizes.Circle, scaleFactor),
+        Name = "Circle",
+        Parent = fill
+    })
+
+    local cCorner = createInstance("UICorner", {CornerRadius = UDim.new(0.5, 0), Parent = circle})
+
+    local minVal, maxVal, currentVal = 0, 100, 50
+    local dragging = false
+
+    local function updateSlider(percent)
+        currentVal = math.floor(minVal + (maxVal - minVal) * percent)
+        fill.Size = UDim2.new(percent, 0, 0, fill.Size.Y.Offset)
+        circle.Position = UDim2.new(percent, 0, 0.5, 0)
+        valueLabel.Text = tostring(currentVal)
+        if slider.Callback then slider.Callback(currentVal) end
+    end
+
+    drag.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position.X - drag.AbsolutePosition.X
+            local percent = math.clamp(delta / drag.AbsoluteSize.X, 0, 1)
+            updateSlider(percent)
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+
+    updateSlider((currentVal - minVal) / (maxVal - minVal))
+
+    slider.SetRange = function(min, max)
+        minVal, maxVal = min, max
+        updateSlider((currentVal - minVal) / (maxVal - minVal))
+    end
+
+    slider.SetValue = function(val)
+        currentVal = math.clamp(val, minVal, maxVal)
+        updateSlider((currentVal - minVal) / (maxVal - minVal))
+    end
+
+    slider.GetValue = function() return currentVal end
+
+    return slider
+end
+
+function Flow:createDropdownTemplate()
+    local dropdown = createInstance("TextButton", {
+        AutoButtonColor = false,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Size = scaleUDim2(originalSizes.Dropdown, scaleFactor),
+        Name = "Dropdown"
+    })
+
+    local padding = createInstance("UIPadding", {PaddingTop = UDim.new(0, 3 * scaleFactor), Parent = dropdown})
+
+    local title = createInstance("TextLabel", {
+        Font = Enum.Font.GothamMedium,
+        Text = "Dropdown",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextScaled = true,
+        TextSize = 14 * scaleFactor,
+        TextTransparency = 0.5,
+        TextWrapped = true,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Size = scaleUDim2(UDim2.new(0, 215, 0, 12), scaleFactor),
+        Name = "Title",
+        Parent = dropdown
+    })
+
+    local titleTSC = createInstance("UITextSizeConstraint", {MaxTextSize = 12 * scaleFactor, Parent = title})
+
+    local box = createInstance("Frame", {
+        AnchorPoint = Vector2.new(0.5, 0),
+        BackgroundColor3 = Color3.fromRGB(48, 48, 48),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0.5, 0, 1.3, 0),
+        Size = scaleUDim2(originalSizes.Box, scaleFactor),
+        Name = "Box",
+        Parent = title
+    })
+
+    local boxCorner = createInstance("UICorner", {CornerRadius = UDim.new(0, 5 * scaleFactor), Parent = box})
+
+    local headerImg = createInstance("ImageLabel", {
+        Image = "rbxassetid://70783523951929",
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 0, -0.5, 0),
+        Size = scaleUDim2(UDim2.new(0, 218, 0, 18), scaleFactor),
+        Name = "Header",
+        Parent = box
+    })
+
+    local dArrow = createInstance("ImageLabel", {
+        Image = "rbxassetid://136776761805636",
+        ImageTransparency = 0.5,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0.93, 0, 0.25, 0),
+        Rotation = -90,
+        Size = scaleUDim2(UDim2.new(0, 10, 0, 10), scaleFactor),
+        Name = "Arrow",
+        Parent = headerImg
+    })
+
+    local optTitle = createInstance("TextLabel", {
+        Font = Enum.Font.GothamMedium,
+        Text = "Option",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextSize = 12 * scaleFactor,
+        TextTransparency = 0.5,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        AnchorPoint = Vector2.new(0.5, 0),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0.5, 0, 0.1, 0),
+        Size = scaleUDim2(UDim2.new(0, 194, 0, 12), scaleFactor),
+        Name = "Option",
+        Parent = headerImg
+    })
+
+    local optTSC = createInstance("UITextSizeConstraint", {MaxTextSize = 12 * scaleFactor, Parent = optTitle})
+
+    local gradient = createInstance("UIGradient", {
+        Transparency = NumberSequence.new{
+            NumberSequenceKeypoint.new(0, 0),
+            NumberSequenceKeypoint.new(0.758, 0),
+            NumberSequenceKeypoint.new(0.93, 0.269),
+            NumberSequenceKeypoint.new(1, 1)
+        },
+        Parent = optTitle
+    })
+
+    local optionsFrame = createInstance("Frame", {
+        AnchorPoint = Vector2.new(0.5, 0),
+        BackgroundColor3 = Color3.fromRGB(35, 35, 35),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        ClipsDescendants = true,
+        Position = UDim2.new(0.5, 0, 1.1, 0),
+        Size = scaleUDim2(originalSizes.Options, scaleFactor),
+        Name = "Options",
+        Parent = box
+    })
+
+    local list = createInstance("ScrollingFrame", {
+        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        ScrollBarImageTransparency = 1,
+        ScrollBarThickness = 0,
+        AnchorPoint = Vector2.new(0.5, 0),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0.5, 0, 0, 0),
+        Size = scaleUDim2(originalSizes.List, scaleFactor),
+        Name = "List",
+        Parent = optionsFrame
+    })
+
+    local listLayout = createInstance("UIListLayout", {HorizontalAlignment = Enum.HorizontalAlignment.Center, Parent = list})
+
+    local fill = createInstance("Frame", {
+        BackgroundColor3 = Color3.fromRGB(35, 35, 35),
+        BackgroundTransparency = 0.5,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 0, -0.05, 0),
+        Size = scaleUDim2(UDim2.new(0, 218, 0, 89), scaleFactor),
+        Name = "Fill",
+        Parent = optionsFrame
+    })
+
+    local cornerImg = createInstance("ImageLabel", {
+        Image = "rbxassetid://130629302605775",
+        ImageTransparency = 0.5,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 0, 1, 0),
+        Size = scaleUDim2(UDim2.new(0, 218, 0, 10), scaleFactor),
+        Name = "Corner",
+        Parent = fill
+    })
+
+    local open = false
+    headerImg.MouseButton1Click:Connect(function()
+        open = not open
+        list.Visible = open
+        dArrow.Rotation = open and 90 or -90
+        TweenService:Create(box, TweenInfo.new(0.2), {Size = open and scaleUDim2(originalSizes.OptionsExpanded, scaleFactor) or scaleUDim2(originalSizes.Box, scaleFactor)}):Play()
+    end)
+
+    local selected = ""
+    dropdown.AddOption = function(optText)
+        local opt = self.OptionTemplate:Clone()
+        opt.Text = optText
+        opt.TextTransparency = (optText == selected) and 0.5 or 0.8
+        opt.Parent = list
+        opt.MouseButton1Click:Connect(function()
+            selected = optText
+            title.Text = selected
+            for _, o in ipairs(list:GetChildren()) do
+                if o:IsA("TextButton") then
+                    o.TextTransparency = (o.Text == selected) and 0.5 or 0.8
                 end
             end
+            open = false
+            list.Visible = false
+            dArrow.Rotation = -90
+            TweenService:Create(box, TweenInfo.new(0.2), {Size = scaleUDim2(originalSizes.Box, scaleFactor)}):Play()
+            if dropdown.Callback then dropdown.Callback(selected) end
         end)
+    end
+
+    dropdown.SetSelected = function(val)
+        selected = val
+        title.Text = selected
+        for _, o in ipairs(list:GetChildren()) do
+            if o:IsA("TextButton") then
+                o.TextTransparency = (o.Text == selected) and 0.5 or 0.8
+            end
+        end
+        if dropdown.Callback then dropdown.Callback(selected) end
+    end
+
+    dropdown.GetSelected = function() return selected end
+
+    return dropdown
+end
+
+function Flow:createKeybindTemplate()
+    local keybind = createInstance("TextButton", {
+        AutoButtonColor = false,
+        AnchorPoint = Vector2.new(0, 0.5),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 0, 0.5, 0),
+        Size = scaleUDim2(originalSizes.Keybind, scaleFactor),
+        Name = "Keybind"
+    })
+
+    local bg = createInstance("Frame", {
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundColor3 = Color3.fromRGB(62, 62, 62),
+        BackgroundTransparency = 0.5,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        Size = scaleUDim2(originalSizes.Background, scaleFactor),
+        Name = "Background",
+        Parent = keybind
+    })
+
+    local bgCorner = createInstance("UICorner", {CornerRadius = UDim.new(0, 4 * scaleFactor), Parent = bg})
+
+    local str = createInstance("TextLabel", {
+        Font = Enum.Font.Gotham,
+        Text = "R",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextSize = 10 * scaleFactor,
+        TextTransparency = 0.5,
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        Size = scaleUDim2(UDim2.new(0, 12, 0, 12), scaleFactor),
+        Visible = true,
+        Name = "String",
+        Parent = bg
+    })
+
+    local strTSC = createInstance("UITextSizeConstraint", {MaxTextSize = 11 * scaleFactor, Parent = str})
+
+    local delete = createInstance("ImageLabel", {
+        Image = "rbxassetid://79831062733212",
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        Size = scaleUDim2(UDim2.new(0, 10, 0, 10), scaleFactor),
+        Visible = false,
+        Name = "Delete",
+        Parent = bg
+    })
+
+    local edit = createInstance("ImageLabel", {
+        Image = "rbxassetid://10734887784",
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        Size = scaleUDim2(UDim2.new(0, 10, 0, 10), scaleFactor),
+        Name = "Edit",
+        Parent = bg
+    })
+
+    local currentKey = "R"
+    local binding = false
+
+    keybind.MouseButton1Click:Connect(function()
+        binding = true
+        str.Visible = false
+        edit.Visible = false
+        delete.Visible = false
+        bg.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
     end)
-    
+
+    UserInputService.InputBegan:Connect(function(input, processed)
+        if binding and not processed and input.KeyCode ~= Enum.KeyCode.Unknown then
+            currentKey = input.KeyCode.Name
+            str.Text = currentKey
+            str.Visible = true
+            edit.Visible = true
+            delete.Visible = true
+            bg.BackgroundColor3 = Color3.fromRGB(62, 62, 62)
+            binding = false
+            if keybind.Callback then keybind.Callback(currentKey) end
+        end
+    end)
+
+    delete.MouseButton1Click:Connect(function()
+        currentKey = "None"
+        str.Text = "None"
+        if keybind.Callback then keybind.Callback(currentKey) end
+    end)
+
+    keybind.SetKey = function(key)
+        currentKey = key or "None"
+        str.Text = currentKey
+        if keybind.Callback then keybind.Callback(currentKey) end
+    end
+
+    keybind.GetKey = function() return currentKey end
+
     return keybind
 end
 
--- Utility Methods
-function AstralUI:Toggle()
-    self.container.Visible = not self.container.Visible
+function Flow:createOptionTemplate()
+    local opt = createInstance("TextButton", {
+        Font = Enum.Font.GothamMedium,
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextSize = 12 * scaleFactor,
+        TextTransparency = 0.5,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Size = scaleUDim2(originalSizes.Option, scaleFactor),
+        ZIndex = 2,
+        Name = "Option"
+    })
+
+    local optTSC = createInstance("UITextSizeConstraint", {MaxTextSize = 12 * scaleFactor, Parent = opt})
+
+    local g = createInstance("UIGradient", {
+        Transparency = NumberSequence.new{
+            NumberSequenceKeypoint.new(0, 0),
+            NumberSequenceKeypoint.new(0.758, 0),
+            NumberSequenceKeypoint.new(0.93, 0.269),
+            NumberSequenceKeypoint.new(1, 1)
+        },
+        Parent = opt
+    })
+
+    return opt
 end
 
-function AstralUI:Destroy()
-    if self.screenGui then
-        self.screenGui:Destroy()
+function Flow:AddTab(name, iconId)
+    local tabIndex = #self.Tabs + 1
+    local section = createInstance("ScrollingFrame", {
+        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        ScrollBarImageTransparency = 1,
+        ScrollBarThickness = 0,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = (tabIndex == 1) and UDim2.new(0.24, 0, 0.11, 0) or UDim2.new(0.62, 0, 0.11, 0),
+        Size = scaleUDim2(originalSizes.Section, scaleFactor),
+        Name = name,
+        Parent = self.SectionsFolder,
+        Visible = (tabIndex == 1)
+    })
+
+    local sLayout = createInstance("UIListLayout", {Padding = UDim.new(0, 6 * scaleFactor), SortOrder = Enum.SortOrder.LayoutOrder, Parent = section})
+
+    -- Tab Button
+    local tab = createInstance("TextButton", {
+        AutoButtonColor = false,
+        BackgroundColor3 = Color3.fromRGB(27, 27, 27),
+        BackgroundTransparency = (tabIndex == 1) and 0 or 0.5,
+        BorderSizePixel = 0,
+        Size = scaleUDim2(originalSizes.Tab, scaleFactor),
+        Font = Enum.Font.SourceSans,
+        Text = "",
+        TextColor3 = Color3.fromRGB(0, 0, 0),
+        TextSize = 14 * scaleFactor,
+        Name = name,
+        Parent = self.TabsFrame
+    })
+
+    local tabCorner = createInstance("UICorner", {CornerRadius = UDim.new(0, 5 * scaleFactor), Parent = tab})
+
+    local tabIcon = createInstance("ImageLabel", {
+        Image = iconId or "",
+        AnchorPoint = Vector2.new(0, 0.5),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0.1, 0, 0.5, 0),
+        Size = scaleUDim2(UDim2.new(0, 12, 0, 12), scaleFactor),
+        Name = "Icon",
+        Parent = tab
+    })
+
+    local tabTitle = createInstance("TextLabel", {
+        Font = Enum.Font.Gotham,
+        Text = name,
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextScaled = true,
+        TextSize = 14 * scaleFactor,
+        TextWrapped = true,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        AnchorPoint = Vector2.new(0, 0.5),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0.225, 0, 0.5, 0),
+        Size = scaleUDim2(UDim2.new(0, 75, 0, 12), scaleFactor),
+        Name = "Title",
+        Parent = tab
+    })
+
+    local tabTitleTSC = createInstance("UITextSizeConstraint", {MaxTextSize = 12 * scaleFactor, Parent = tabTitle})
+
+    tab.MouseButton1Click:Connect(function()
+        for i, s in ipairs(self.Sections) do
+            s.Visible = (i == tabIndex)
+        end
+        for i, t in ipairs(self.Tabs) do
+            t.BackgroundTransparency = (i == tabIndex) and 0 or 0.5
+        end
+        self.CurrentTab = tabIndex
+    end)
+
+    table.insert(self.Tabs, tab)
+    table.insert(self.Sections, section)
+
+    local tabObj = {}
+    function tabObj:AddModule(mName)
+        local mod = self.ModuleTemplate:Clone()
+        mod.Name = mName
+        mod.Header.Title.Text = mName
+        mod.Parent = section
+
+        local modObj = {}
+        function modObj:AddToggle(tName, callback)
+            local toggle = Flow.ToggleTemplate:Clone()
+            toggle.Title.Text = tName
+            toggle.Callback = callback
+            toggle.Parent = mod.Settings
+            toggle:SetState(false)
+            return toggle
+        end
+
+        function modObj:AddSlider(sName, min, max, default, callback)
+            local slider = Flow.SliderTemplate:Clone()
+            slider.Title.Text = sName
+            slider.Callback = callback
+            slider:SetRange(min or 0, max or 100)
+            slider:SetValue(default or 50)
+            slider.Parent = mod.Settings
+            return slider
+        end
+
+        function modObj:AddDropdown(dName, options, default, callback)
+            local dropdown = Flow.DropdownTemplate:Clone()
+            dropdown.Title.Text = dName
+            dropdown.Callback = callback
+            for _, opt in ipairs(options or {}) do
+                dropdown:AddOption(opt)
+            end
+            dropdown:SetSelected(default or options[1])
+            dropdown.Parent = mod.Settings
+            return dropdown
+        end
+
+        function modObj:AddKeybind(kName, default, callback)
+            local keybind = Flow.KeybindTemplate:Clone()
+            keybind.Parent = mod.Header
+            -- Position adjustment if needed
+            keybind.Position = UDim2.new(1, -40 * scaleFactor, 0.5, 0)
+            keybind:SetKey(default or "R")
+            keybind.Callback = callback
+            return keybind
+        end
+
+        return modObj
     end
+
+    return tabObj
 end
 
-return AstralUI
+return Flow
