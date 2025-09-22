@@ -249,7 +249,7 @@ function Flow:Init()
         for _, section in ipairs(self.Sections) do
             for _, module in ipairs(section:GetChildren()) do
                 if module:IsA("Frame") and module:FindFirstChild("Header") then
-                    module.Visible = query == "" or string.find(module.Header.Title.Text:lower(), query)
+                    module.Visible = query == "" or string.find(module:FindFirstChild("Header").Title.Text:lower(), query)
                 end
             end
         end
@@ -953,6 +953,9 @@ function Flow:AddTab(name, iconId)
     local tabObj = {}
     function tabObj:AddModule(mName)
         local mod = self.ModuleTemplate:Clone()
+        -- Fix for cloned template: Reassign custom properties
+        mod.Header = mod:FindFirstChild("Header")
+        mod.Settings = mod:FindFirstChild("Settings")
         mod.Name = mName
         mod.Header.Title.Text = mName
         mod.Parent = section
@@ -984,7 +987,11 @@ function Flow:AddTab(name, iconId)
             for _, opt in ipairs(options or {}) do
                 dropdown:AddOption(opt)
             end
-            dropdown:SetSelected(default or options[1])
+            if default and #options > 0 then
+                dropdown:SetSelected(default)
+            elseif #options > 0 then
+                dropdown:SetSelected(options[1])
+            end
             dropdown.Parent = mod.Settings
             return dropdown
         end
